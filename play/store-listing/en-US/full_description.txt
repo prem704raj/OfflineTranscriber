@@ -1,0 +1,44 @@
+Turn recordings, lectures, meetings, interviews, audio files and videos into useful text — privately on your Android device.
+
+Offline Transcriber is built for people who want transcription without sending every minute of audio to a remote transcription server. Once the required speech model is downloaded, transcription runs locally on your device.
+
+WHAT YOU CAN DO
+
+• Import audio and video for private on-device transcription
+• Record lectures, meetings, interviews and voice notes
+• Follow the transcript while audio or video plays
+• Tap timestamps to jump to the exact moment
+• Search across your transcript library
+• Bookmark important moments and organize transcripts into collections
+• Turn transcripts into study notes, chapters, flashcards and quizzes
+• Ask grounded questions about transcripts and your local library
+• Create meeting summaries, decisions, action items and open questions
+• Detect different speakers locally and rename or merge speaker labels
+• Edit subtitles and export SRT or VTT
+• Create captioned videos with captions permanently rendered into the video
+• Export transcripts and insights as TXT, Markdown, PDF or DOCX
+• Create portable backups and restore your library on another Android device
+
+PRIVATE BY DESIGN
+
+Your transcript processing is designed to run on your device. Offline Transcriber does not require an account and does not use a developer-operated cloud transcription backend.
+
+Internet access can still be used for things such as downloading optional on-device models and Google Play purchase services. When you explicitly save, share or back up a file, Android sends it only to the destination you choose.
+
+FREE CORE TRANSCRIPTION
+
+Core audio transcription is designed to stay useful without a monthly minute allowance.
+
+Offline Transcriber Pro is an optional one-time purchase that unlocks advanced features such as Accurate speech models, video transcription workflows, Study and Meeting tools, speaker intelligence, advanced exports and captioned-video export. There is no recurring Pro subscription in the current version.
+
+BUILT FOR
+
+• Students and lectures
+• Meetings and interviews
+• Journalists and researchers
+• Creators working with video captions
+• Anyone who prefers local-first transcription and searchable notes
+
+IMPORTANT
+
+Transcription and speaker detection accuracy can vary with audio quality, background noise, language, accent, device performance and overlapping speech. On-device processing speed also varies by phone.

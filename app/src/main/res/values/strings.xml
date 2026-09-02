@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Offline Transcriber</string>
+
+    <string name="shortcut_record_short">Record</string>
+    <string name="shortcut_record_long">Record &amp; transcribe</string>
+
+    <string name="shortcut_import_short">Import</string>
+    <string name="shortcut_import_long">Import audio</string>
+
+    <string name="shortcut_queue_short">Queue</string>
+    <string name="shortcut_queue_long">Open transcription queue</string>
+
+    <string name="privacy_policy_url">https://raw.githubusercontent.com/prem7090/transcriber/main/docs/PRIVACY_POLICY_FINAL.md</string>
+</resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path
+        name="shared_subtitles"
+        path="shared_subtitles/" />
+    <cache-path
+        name="diagnostics"
+        path="diagnostics/" />
+    <cache-path
+        name="export_share"
+        path="export_share/" />
+    <cache-path
+        name="shared_caption_videos"
+        path="shared_caption_videos/" />
+</paths>
