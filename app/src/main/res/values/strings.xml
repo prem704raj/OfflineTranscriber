@@ -10,5 +10,5 @@
     <string name="shortcut_queue_short">Queue</string>
     <string name="shortcut_queue_long">Open transcription queue</string>
 
-    <string name="privacy_policy_url">https://raw.githubusercontent.com/prem7090/transcriber/main/docs/PRIVACY_POLICY_FINAL.md</string>
+    <string name="privacy_policy_url">https://prem704raj.github.io/OfflineTranscriber/privacy/</string>
 </resources>

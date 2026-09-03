@@ -1,7 +1,7 @@
 # Play Store Release Checklist
 
 ## 1. Application Build & Signing
-- [x] **Package Name / Application ID**: `com.example.transcriber`
+- [x] **Package Name / Application ID**: `app.offlinetranscriber.mobile`
 - [x] **Version Code**: `1` (Unique positive integer for release)
 - [x] **Version Name**: `1.0.0`
 - [x] **Target SDK**: `36` (Android 16 compatibility)

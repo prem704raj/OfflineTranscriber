@@ -1,21 +1,35 @@
+import org.gradle.api.GradleException
+
 plugins {
-  alias(libs.plugins.android.application)
-  alias(libs.plugins.compose.compiler)
-  alias(libs.plugins.kotlin.serialization)
-  alias(libs.plugins.ksp)
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
 }
 
+val uploadStoreFile = providers.environmentVariable("OT_UPLOAD_STORE_FILE").orNull
+val uploadStorePassword = providers.environmentVariable("OT_UPLOAD_STORE_PASSWORD").orNull
+val uploadKeyAlias = providers.environmentVariable("OT_UPLOAD_KEY_ALIAS").orNull
+val uploadKeyPassword = providers.environmentVariable("OT_UPLOAD_KEY_PASSWORD").orNull
+
+val releaseSigningReady =
+    !uploadStoreFile.isNullOrBlank() &&
+    !uploadStorePassword.isNullOrBlank() &&
+    !uploadKeyAlias.isNullOrBlank() &&
+    !uploadKeyPassword.isNullOrBlank()
+
 android {
-    namespace = "com.example.transcriber"
+    namespace = "app.offlinetranscriber.mobile"
     compileSdk = 36
     ndkVersion = "27.1.12297006"
 
     defaultConfig {
-        applicationId = "com.example.transcriber"
+        applicationId = "app.offlinetranscriber.mobile"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
@@ -24,6 +38,21 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags += "-std=c++17"
+            }
+        }
+    }
+
+    signingConfigs {
+        if (releaseSigningReady) {
+            create("release") {
+                storeFile = file(uploadStoreFile!!)
+                storePassword = uploadStorePassword
+                keyAlias = uploadKeyAlias
+                keyPassword = uploadKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
             }
         }
     }
@@ -39,12 +68,24 @@ android {
         debug {
             isDebuggable = true
         }
+
         release {
             isDebuggable = false
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug")
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+
+            if (releaseSigningReady) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
+
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
@@ -54,86 +95,86 @@ android {
     }
 
     buildFeatures {
-      compose = true
-      aidl = false
-      buildConfig = true
-      shaders = false
+        compose = true
+        aidl = false
+        buildConfig = true
+        shaders = false
     }
 
     packaging {
-      resources {
-        excludes += "/META-INF/{AL2.0,LGPL2.1}"
-      }
+        jniLibs {
+            useLegacyPackaging = false
+        }
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+}
+
+tasks.matching {
+    it.name == "bundleRelease" || it.name == "assembleRelease"
+}.configureEach {
+    doFirst {
+        if (!releaseSigningReady) {
+            throw GradleException(
+                "Release signing is not configured. Set OT_UPLOAD_STORE_FILE, " +
+                    "OT_UPLOAD_STORE_PASSWORD, OT_UPLOAD_KEY_ALIAS and " +
+                    "OT_UPLOAD_KEY_PASSWORD. Never fall back to debug signing."
+            )
+        }
     }
 }
 
 dependencies {
-  val composeBom = platform(libs.androidx.compose.bom)
-  implementation(composeBom)
-  androidTestImplementation(composeBom)
+    val composeBom = platform(libs.androidx.compose.bom)
+    implementation(composeBom)
+    androidTestImplementation(composeBom)
 
-  // Core Android dependencies
-  implementation(libs.androidx.core.ktx)
-  implementation(libs.androidx.lifecycle.runtime.ktx)
-  implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
 
-  // Arch Components
-  implementation(libs.androidx.lifecycle.runtime.compose)
-  implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
 
-  // Compose
-  implementation(libs.androidx.compose.ui)
-  implementation(libs.androidx.compose.ui.tooling.preview)
-  implementation(libs.androidx.compose.material3)
-  implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 
-  // Room Database
-  implementation(libs.androidx.room.runtime)
-  implementation(libs.androidx.room.ktx)
-  ksp(libs.androidx.room.compiler)
+    implementation(libs.kotlinx.serialization.json)
 
-  // Serialization & Media
-  implementation(libs.kotlinx.serialization.json)
-  implementation(libs.androidx.media3.exoplayer)
-  implementation(libs.androidx.media3.ui)
-  implementation(libs.androidx.media3.transformer)
-  implementation(libs.androidx.media3.effect)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.transformer)
+    implementation(libs.androidx.media3.effect)
 
-  // Tooling
-  debugImplementation(libs.androidx.compose.ui.tooling)
-  // Instrumented tests
-  androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-  debugImplementation(libs.androidx.compose.ui.test.manifest)
+    implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 
-  // Local tests: jUnit, coroutines, Android runner
-  testImplementation(libs.junit)
-  testImplementation(libs.kotlinx.coroutines.test)
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta4")
+    implementation("androidx.datastore:datastore-preferences:1.1.7")
 
-  // Instrumented tests: jUnit rules and runners
-  androidTestImplementation(libs.androidx.test.core)
-  androidTestImplementation(libs.androidx.test.ext.junit)
-  androidTestImplementation(libs.androidx.test.runner)
-  androidTestImplementation(libs.androidx.test.espresso.core)
+    val billingVersion = "9.1.0"
+    implementation("com.android.billingclient:billing:$billingVersion")
+    implementation("com.android.billingclient:billing-ktx:$billingVersion")
 
-  // Navigation
-  implementation(libs.androidx.navigation3.ui)
-  implementation(libs.androidx.navigation3.runtime)
-  implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+    implementation(files("libs/sherpa-onnx-1.13.6.aar"))
+    implementation("org.apache.commons:commons-compress:1.26.2")
 
-  // ML Kit On-Device GenAI Prompt API (Gemini Nano)
-  implementation("com.google.mlkit:genai-prompt:1.0.0-beta4")
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-  // DataStore Preferences
-  implementation("androidx.datastore:datastore-preferences:1.1.7")
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 
-  // Google Play Billing
-  val billingVersion = "9.1.0"
-  implementation("com.android.billingclient:billing:$billingVersion")
-  implementation("com.android.billingclient:billing-ktx:$billingVersion")
-
-  // Speaker Intelligence (sherpa-onnx 1.13.6 pinned local AAR)
-  implementation(files("libs/sherpa-onnx-1.13.6.aar"))
-
-  // Safe Archive Extraction (for model archives)
-  implementation("org.apache.commons:commons-compress:1.26.2")
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.espresso.core)
 }

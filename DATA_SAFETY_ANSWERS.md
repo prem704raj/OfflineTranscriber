@@ -1,6 +1,6 @@
 # Google Play Data Safety Answers
 
-This document provides accurate, audited responses for completing the Google Play Console Data Safety questionnaire for **Offline Transcriber (com.example.transcriber)**.
+This document provides accurate, audited responses for completing the Google Play Console Data Safety questionnaire for **Offline Transcriber (app.offlinetranscriber.mobile)**.
 
 ---
 

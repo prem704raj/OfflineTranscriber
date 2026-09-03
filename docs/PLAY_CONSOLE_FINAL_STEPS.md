@@ -1,7 +1,7 @@
 # Google Play Console Launch Steps
 
 1. **Create App in Google Play Console**
-   - Application ID: `com.example.transcriber`
+   - Application ID: `app.offlinetranscriber.mobile`
    - App name: `Offline Transcriber`
    - Default language: English (United States)
    - App or Game: App

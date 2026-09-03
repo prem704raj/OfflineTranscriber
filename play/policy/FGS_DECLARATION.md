@@ -5,7 +5,7 @@ This document contains the exact descriptions, user impact statements, and demon
 ---
 
 ## 1. Foreground Service Type: `microphone`
-- **Service Name**: `com.example.transcriber.recording.RecordingService` (or active recording service)
+- **Service Name**: `app.offlinetranscriber.mobile.recording.RecordingService` (or active recording service)
 - **Declared Permissions**: `android.permission.FOREGROUND_SERVICE`, `android.permission.FOREGROUND_SERVICE_MICROPHONE`, `android.permission.RECORD_AUDIO`
 
 ### A. Feature Name
@@ -34,9 +34,9 @@ This document contains the exact descriptions, user impact statements, and demon
 
 ## 2. Foreground Service Type: `mediaProcessing`
 - **Service Names**:
-  - `com.example.transcriber.background.TranscriptionForegroundService`
-  - `com.example.transcriber.speaker.background.SpeakerDiarizationForegroundService`
-  - `com.example.transcriber.caption.export.background.CaptionExportForegroundService`
+  - `app.offlinetranscriber.mobile.background.TranscriptionForegroundService`
+  - `app.offlinetranscriber.mobile.speaker.background.SpeakerDiarizationForegroundService`
+  - `app.offlinetranscriber.mobile.caption.export.background.CaptionExportForegroundService`
 - **Declared Permissions**: `android.permission.FOREGROUND_SERVICE`, `android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING`
 
 ### A. Feature Name
@@ -62,7 +62,7 @@ This document contains the exact descriptions, user impact statements, and demon
 ---
 
 ## 3. Foreground Service Type: `dataSync`
-- **Service Name**: `com.example.transcriber.backup.background.BackupRestoreForegroundService`
+- **Service Name**: `app.offlinetranscriber.mobile.backup.background.BackupRestoreForegroundService`
 - **Declared Permissions**: `android.permission.FOREGROUND_SERVICE`, `android.permission.FOREGROUND_SERVICE_DATA_SYNC`
 
 ### A. Feature Name

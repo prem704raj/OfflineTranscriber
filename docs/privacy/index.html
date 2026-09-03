@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Offline Transcriber</title>
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --accent: #4f46e5;
+            --border: #e2e8f0;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #0f172a;
+                --card-bg: #1e293b;
+                --text-primary: #f8fafc;
+                --text-secondary: #94a3b8;
+                --accent: #818cf8;
+                --border: #334155;
+            }
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 24px 16px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+        h1 {
+            color: var(--accent);
+            font-size: 28px;
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+        .meta {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 12px;
+        }
+        h2 {
+            font-size: 20px;
+            margin-top: 28px;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+            border-left: 4px solid var(--accent);
+            padding-left: 12px;
+        }
+        p, li {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        .badge {
+            display: inline-block;
+            background-color: rgba(79, 70, 229, 0.1);
+            color: var(--accent);
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        footer {
+            margin-top: 40px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Privacy Policy</h1>
+        <div class="meta">
+            <strong>Application:</strong> Offline Transcriber (<code>app.offlinetranscriber.mobile</code>)<br>
+            <strong>Effective Date:</strong> September 3, 2026<br>
+            <strong>Status:</strong> <span class="badge">100% On-Device &amp; Private</span>
+        </div>
+
+        <h2>1. Executive Summary</h2>
+        <p><strong>Offline Transcriber</strong> is architected with a strict privacy-first principle: <em>all speech transcription, text generation, and audio processing occur 100% locally on your Android device</em>. We do not operate backend servers that collect your audio, transcripts, conversations, or personal data.</p>
+
+        <h2>2. Data Collection and Processing</h2>
+        <ul>
+            <li><strong>Audio Recordings &amp; Imported Media:</strong> When you record audio with your microphone or import an audio/video file, the media is processed exclusively on-device by local machine learning engines (Whisper / Sherpa). The media never leaves your device.</li>
+            <li><strong>Transcripts &amp; Study Materials:</strong> Transcripts, notes, flashcards, quizzes, speaker diarization tags, and meeting summaries are stored in an encrypted/private SQLite database inside the app's protected sandbox directory.</li>
+            <li><strong>No Analytics or Tracking:</strong> We do not include any advertising networks, third-party analytics SDKs, behavioral trackers, or device fingerprinting libraries.</li>
+        </ul>
+
+        <h2>3. Device Permissions and Usage</h2>
+        <ul>
+            <li><strong>Record Audio (<code>android.permission.RECORD_AUDIO</code>):</strong> Used solely when you tap the Record button in the app. A foreground service with a persistent notification (<code>FOREGROUND_SERVICE_MICROPHONE</code>) indicates whenever microphone recording is actively running. Recordings are saved only to your local storage.</li>
+            <li><strong>Internet Access (<code>android.permission.INTERNET</code>):</strong> Used solely to download open-source Whisper model files from trusted repositories (e.g. HuggingFace) when explicitly requested by you in the Model Manager. The app functions completely offline without internet connectivity once models are downloaded.</li>
+            <li><strong>Post Notifications (<code>android.permission.POST_NOTIFICATIONS</code>):</strong> Required on Android 13+ to display foreground progress notifications during long background transcription or active audio recording.</li>
+        </ul>
+
+        <h2>4. In-App Purchases and Billing</h2>
+        <p>Purchases for Lifetime Pro access are processed directly and securely through Google Play Billing (Google Play Store). We do not collect, process, or store your credit card numbers, payment methods, or banking information. Licensing verification is handled on-device via Google Play Store services.</p>
+
+        <h2>5. Data Retention, Portability, and Deletion</h2>
+        <p>Because all data resides exclusively on your device, you retain full ownership and control:</p>
+        <ul>
+            <li><strong>Individual Deletion:</strong> You can delete any individual transcript, recording, or collection at any time within the app.</li>
+            <li><strong>Encrypted Portable Backup:</strong> You can export an AES-256-GCM encrypted backup of your transcripts and restore it on another device with your private password.</li>
+            <li><strong>Complete Wipe:</strong> You can purge all app data, models, and databases directly from the in-app Privacy &amp; Data Center, or by clearing app storage in Android System Settings or uninstalling the app.</li>
+        </ul>
+
+        <h2>6. Third-Party Sharing</h2>
+        <p>We do not sell, rent, monetize, or transmit your data to any third party under any circumstance. Audio files and transcripts are shared only when you explicitly invoke the system share sheet (e.g. Export as TXT, PDF, DOCX, or SRT).</p>
+
+        <h2>7. Contact and Inquiries</h2>
+        <p>If you have any questions, feedback, or concerns regarding this privacy policy or the application, please contact the maintainer via the official GitHub repository:</p>
+        <p><a href="https://github.com/prem704raj/OfflineTranscriber" target="_blank" rel="noopener">https://github.com/prem704raj/OfflineTranscriber</a></p>
+
+        <footer>
+            &copy; 2026 Offline Transcriber. Built for total privacy and offline productivity.
+        </footer>
+    </div>
+</body>
+</html>

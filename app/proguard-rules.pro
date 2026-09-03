@@ -6,9 +6,9 @@
 }
 
 # Keep Whisper JNI engine and native bridge
--keep class com.example.transcriber.transcription.WhisperNative { *; }
--keep class com.example.transcriber.transcription.TranscriptionListener { *; }
--keep class com.example.transcriber.whisper.** { *; }
+-keep class app.offlinetranscriber.mobile.transcription.WhisperNative { *; }
+-keep class app.offlinetranscriber.mobile.transcription.TranscriptionListener { *; }
+-keep class app.offlinetranscriber.mobile.whisper.** { *; }
 
 # Keep Room generated and runtime classes
 -keep class androidx.room.** { *; }

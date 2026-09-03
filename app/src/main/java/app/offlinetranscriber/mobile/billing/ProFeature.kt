@@ -1,0 +1,15 @@
+package app.offlinetranscriber.mobile.billing
+
+enum class ProFeature {
+    ACCURATE_MODEL,
+    VIDEO_TRANSCRIPTION,
+    SUBTITLE_EXPORT,
+    STUDY_MODE,
+    UNLIMITED_COLLECTIONS,
+    BATCH_QUEUE,
+    ASK_TRANSCRIPTS,
+    MEETING_INTELLIGENCE,
+    SPEAKER_INTELLIGENCE,
+    PREMIUM_EXPORT,
+    BURNED_IN_CAPTIONS
+}

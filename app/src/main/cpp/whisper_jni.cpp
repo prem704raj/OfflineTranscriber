@@ -89,7 +89,7 @@ static void asset_close(void *ctx) {
 extern "C" {
 
 JNIEXPORT jlong JNICALL
-Java_com_example_transcriber_transcription_WhisperNative_initContext(
+Java_app_offlinetranscriber_mobile_transcription_WhisperNative_initContext(
         JNIEnv *env, jobject /*thiz*/, jstring model_path_str) {
     if (!model_path_str) {
         LOGE("Model path is null");
@@ -115,7 +115,7 @@ Java_com_example_transcriber_transcription_WhisperNative_initContext(
 }
 
 JNIEXPORT jlong JNICALL
-Java_com_example_transcriber_transcription_WhisperNative_initContextFromAsset(
+Java_app_offlinetranscriber_mobile_transcription_WhisperNative_initContextFromAsset(
         JNIEnv *env, jobject /*thiz*/, jobject asset_manager_obj, jstring asset_path_str) {
     if (!asset_manager_obj || !asset_path_str) {
         LOGE("Asset manager or asset path is null");
@@ -162,7 +162,7 @@ Java_com_example_transcriber_transcription_WhisperNative_initContextFromAsset(
 }
 
 JNIEXPORT void JNICALL
-Java_com_example_transcriber_transcription_WhisperNative_freeContext(
+Java_app_offlinetranscriber_mobile_transcription_WhisperNative_freeContext(
         JNIEnv */*env*/, jobject /*thiz*/, jlong context_ptr) {
     auto *context = reinterpret_cast<struct whisper_context *>(context_ptr);
     if (context) {
@@ -172,7 +172,7 @@ Java_com_example_transcriber_transcription_WhisperNative_freeContext(
 }
 
 JNIEXPORT jint JNICALL
-Java_com_example_transcriber_transcription_WhisperNative_fullTranscribe(
+Java_app_offlinetranscriber_mobile_transcription_WhisperNative_fullTranscribe(
         JNIEnv *env, jobject /*thiz*/, jlong context_ptr, jint num_threads,
         jfloatArray audio_data, jstring lang_str, jboolean translate, jobject listener) {
     auto *context = reinterpret_cast<struct whisper_context *>(context_ptr);
@@ -250,14 +250,14 @@ Java_com_example_transcriber_transcription_WhisperNative_fullTranscribe(
 }
 
 JNIEXPORT jint JNICALL
-Java_com_example_transcriber_transcription_WhisperNative_getTextSegmentCount(
+Java_app_offlinetranscriber_mobile_transcription_WhisperNative_getTextSegmentCount(
         JNIEnv */*env*/, jobject /*thiz*/, jlong context_ptr) {
     auto *context = reinterpret_cast<struct whisper_context *>(context_ptr);
     return context ? whisper_full_n_segments(context) : 0;
 }
 
 JNIEXPORT jstring JNICALL
-Java_com_example_transcriber_transcription_WhisperNative_getTextSegment(
+Java_app_offlinetranscriber_mobile_transcription_WhisperNative_getTextSegment(
         JNIEnv *env, jobject /*thiz*/, jlong context_ptr, jint index) {
     auto *context = reinterpret_cast<struct whisper_context *>(context_ptr);
     if (!context) return env->NewStringUTF("");
@@ -266,7 +266,7 @@ Java_com_example_transcriber_transcription_WhisperNative_getTextSegment(
 }
 
 JNIEXPORT jlong JNICALL
-Java_com_example_transcriber_transcription_WhisperNative_getTextSegmentT0(
+Java_app_offlinetranscriber_mobile_transcription_WhisperNative_getTextSegmentT0(
         JNIEnv */*env*/, jobject /*thiz*/, jlong context_ptr, jint index) {
     auto *context = reinterpret_cast<struct whisper_context *>(context_ptr);
     if (!context) return 0;
@@ -274,7 +274,7 @@ Java_com_example_transcriber_transcription_WhisperNative_getTextSegmentT0(
 }
 
 JNIEXPORT jlong JNICALL
-Java_com_example_transcriber_transcription_WhisperNative_getTextSegmentT1(
+Java_app_offlinetranscriber_mobile_transcription_WhisperNative_getTextSegmentT1(
         JNIEnv */*env*/, jobject /*thiz*/, jlong context_ptr, jint index) {
     auto *context = reinterpret_cast<struct whisper_context *>(context_ptr);
     if (!context) return 0;
@@ -282,7 +282,7 @@ Java_com_example_transcriber_transcription_WhisperNative_getTextSegmentT1(
 }
 
 JNIEXPORT jstring JNICALL
-Java_com_example_transcriber_transcription_WhisperNative_getSystemInfo(
+Java_app_offlinetranscriber_mobile_transcription_WhisperNative_getSystemInfo(
         JNIEnv *env, jobject /*thiz*/) {
     const char *info = whisper_print_system_info();
     return env->NewStringUTF(info ? info : "Unknown");
