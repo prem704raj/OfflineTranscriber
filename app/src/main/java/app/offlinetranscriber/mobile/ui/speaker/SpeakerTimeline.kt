@@ -29,16 +29,17 @@ import androidx.compose.ui.unit.dp
 import app.offlinetranscriber.mobile.data.database.SpeakerTurnRow
 import java.util.Locale
 
-// Speaker color palette
+import app.offlinetranscriber.mobile.theme.SpeakerBlue
+import app.offlinetranscriber.mobile.theme.SpeakerOchre
+import app.offlinetranscriber.mobile.theme.SpeakerPlum
+import app.offlinetranscriber.mobile.theme.SpeakerTeal
+
+// Speaker palette: restrained categorical markers, never a rainbow UI.
 val SpeakerColors = listOf(
-    Color(0xFF3B82F6), // Blue
-    Color(0xFF10B981), // Emerald
-    Color(0xFFF59E0B), // Amber
-    Color(0xFF8B5CF6), // Purple
-    Color(0xFFEC4899), // Pink
-    Color(0xFF06B6D4), // Cyan
-    Color(0xFFF97316), // Orange
-    Color(0xFF6366F1)  // Indigo
+    SpeakerBlue,
+    SpeakerTeal,
+    SpeakerPlum,
+    SpeakerOchre
 )
 
 fun getSpeakerColor(speakerIndex: Int): Color {

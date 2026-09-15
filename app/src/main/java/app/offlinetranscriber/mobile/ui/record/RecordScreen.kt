@@ -6,9 +6,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,20 +19,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +39,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,10 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,6 +57,15 @@ import androidx.core.content.ContextCompat
 import app.offlinetranscriber.mobile.recorder.RecordingForegroundService
 import app.offlinetranscriber.mobile.recorder.RecordingSessionStore
 import app.offlinetranscriber.mobile.recorder.RecordingStatus
+import app.offlinetranscriber.mobile.theme.OtDisplayFamily
+import app.offlinetranscriber.mobile.ui.accessibility.accessibleAction
+import app.offlinetranscriber.mobile.ui.design.AppDimens
+import app.offlinetranscriber.mobile.ui.design.AppShapes
+import app.offlinetranscriber.mobile.ui.icons.OtIcons
+import app.offlinetranscriber.mobile.ui.layout.ReadingWidthContainer
+import app.offlinetranscriber.mobile.ui.system.OtAmplitudeMeter
+import app.offlinetranscriber.mobile.ui.system.OtStatusKind
+import app.offlinetranscriber.mobile.ui.system.OtStatusLabel
 import java.io.File
 import java.util.Locale
 
@@ -127,289 +127,276 @@ fun RecordScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Record Audio") },
+                title = {
+                    Text(
+                        "Record Audio",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.accessibleAction("Back")
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         },
         modifier = modifier
     ) { padding ->
-        Column(
+        ReadingWidthContainer(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // 1. Status and Timer
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                val statusText = when (recordingState.status) {
-                    RecordingStatus.IDLE -> "Ready to Record"
-                    RecordingStatus.RECORDING -> "Recording in Progress"
-                    RecordingStatus.PAUSED -> "Recording Paused"
-                    RecordingStatus.COMPLETED -> "Recording Complete"
-                    RecordingStatus.ERROR -> recordingState.errorMessage ?: "Recording Error"
-                }
-
-                val statusColor by animateColorAsState(
-                    targetValue = when (recordingState.status) {
-                        RecordingStatus.RECORDING -> MaterialTheme.colorScheme.error
-                        RecordingStatus.PAUSED -> MaterialTheme.colorScheme.tertiary
-                        RecordingStatus.COMPLETED -> MaterialTheme.colorScheme.primary
-                        RecordingStatus.ERROR -> MaterialTheme.colorScheme.error
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    label = "statusColor"
-                )
-
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = statusColor,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = formatDuration(recordingState.durationMs),
-                    style = MaterialTheme.typography.displayLarge.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 54.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            // 2. Waveform / Visualizer
-            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxSize()
+                    .padding(horizontal = AppDimens.ScreenHorizontal),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                val animatedScale by animateFloatAsState(
-                    targetValue = if (recordingState.status == RecordingStatus.RECORDING) {
-                        1f + (recordingState.amplitude * 0.8f)
-                    } else {
-                        1f
-                    },
-                    animationSpec = spring(),
-                    label = "pulseScale"
-                )
+                Spacer(modifier = Modifier.height(AppDimens.Space6))
 
-                Box(
-                    modifier = Modifier
-                        .size(130.dp)
-                        .scale(animatedScale)
-                        .clip(CircleShape)
-                        .background(
-                            if (recordingState.status == RecordingStatus.RECORDING) {
-                                MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
-                            } else {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                            }
-                        )
-                )
-
-                Box(
-                    modifier = Modifier
-                        .size(90.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (recordingState.status == RecordingStatus.RECORDING) {
-                                MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
-                            } else {
-                                MaterialTheme.colorScheme.primaryContainer
-                            }
-                        ),
-                    contentAlignment = Alignment.Center
+                // 1. Status and Tabular Timer
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Mic,
-                        contentDescription = null,
-                        modifier = Modifier.size(42.dp),
-                        tint = if (recordingState.status == RecordingStatus.RECORDING) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        }
+                    val (statusText, statusKind) = when (recordingState.status) {
+                        RecordingStatus.IDLE -> "Ready to Record" to OtStatusKind.NEUTRAL
+                        RecordingStatus.RECORDING -> "Recording in Progress" to OtStatusKind.PROCESSING
+                        RecordingStatus.PAUSED -> "Recording Paused" to OtStatusKind.NEUTRAL
+                        RecordingStatus.COMPLETED -> "Recording Complete" to OtStatusKind.LOCAL
+                        RecordingStatus.ERROR -> (recordingState.errorMessage ?: "Recording Error") to OtStatusKind.NEUTRAL
+                    }
+
+                    OtStatusLabel(
+                        text = statusText,
+                        kind = statusKind
+                    )
+
+                    Spacer(modifier = Modifier.height(AppDimens.Space4))
+
+                    Text(
+                        text = formatDuration(recordingState.durationMs),
+                        style = MaterialTheme.typography.displayLarge.copy(
+                            fontFamily = OtDisplayFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 54.sp,
+                            fontFeatureSettings = "tnum"
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-            }
 
-            // 3. Actions / Controls
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                when (recordingState.status) {
-                    RecordingStatus.IDLE -> {
-                        Button(
-                            onClick = {
-                                if (hasMicPermission) {
-                                    startRecordingService(context)
-                                } else {
-                                    micLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error
-                            )
-                        ) {
-                            Icon(Icons.Default.Mic, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Start Recording", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
+                // 2. Physical Waveform Visualizer
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = AppDimens.Space4),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val rawAmp = (recordingState.amplitude * 32767f).toInt()
+                    OtAmplitudeMeter(
+                        amplitude = if (recordingState.status == RecordingStatus.RECORDING) rawAmp else 0,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(84.dp)
+                    )
+                }
 
-                    RecordingStatus.RECORDING -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            FilledTonalIconButton(
-                                onClick = { showDiscardConfirm = true },
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Discard")
-                            }
-
-                            FilledTonalIconButton(
-                                onClick = {
-                                    context.startService(RecordingForegroundService.pauseIntent(context))
-                                },
-                                modifier = Modifier.size(64.dp)
-                            ) {
-                                Icon(Icons.Default.Pause, contentDescription = "Pause")
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    context.startService(RecordingForegroundService.stopIntent(context))
-                                },
-                                modifier = Modifier
-                                    .size(72.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.error),
-                                colors = IconButtonDefaults.iconButtonColors(
-                                    contentColor = Color.White
-                                )
-                            ) {
-                                Icon(Icons.Default.Stop, contentDescription = "Stop", modifier = Modifier.size(32.dp))
-                            }
-                        }
-                    }
-
-                    RecordingStatus.PAUSED -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            FilledTonalIconButton(
-                                onClick = { showDiscardConfirm = true },
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Discard")
-                            }
-
-                            FilledTonalIconButton(
-                                onClick = {
-                                    context.startService(RecordingForegroundService.resumeIntent(context))
-                                },
-                                modifier = Modifier.size(64.dp)
-                            ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = "Resume")
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    context.startService(RecordingForegroundService.stopIntent(context))
-                                },
-                                modifier = Modifier
-                                    .size(72.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.error),
-                                colors = IconButtonDefaults.iconButtonColors(
-                                    contentColor = Color.White
-                                )
-                            ) {
-                                Icon(Icons.Default.Stop, contentDescription = "Stop", modifier = Modifier.size(32.dp))
-                            }
-                        }
-                    }
-
-                    RecordingStatus.COMPLETED -> {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
+                // 3. Physical Transport Actions
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = AppDimens.Space8),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    when (recordingState.status) {
+                        RecordingStatus.IDLE -> {
                             Button(
                                 onClick = {
-                                    recordingState.filePath?.let { path ->
-                                        val file = File(path)
-                                        if (file.exists()) {
-                                            onTranscribe(file)
-                                        }
+                                    if (hasMicPermission) {
+                                        startRecordingService(context)
+                                    } else {
+                                        micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                     }
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(56.dp),
-                                shape = RoundedCornerShape(16.dp)
+                                    .height(AppDimens.PrimaryTouchTarget),
+                                shape = AppShapes.Button
                             ) {
-                                Icon(Icons.Default.Translate, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Transcribe Audio", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            }
-
-                            OutlinedButton(
-                                onClick = {
-                                    showDiscardConfirm = true
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp),
-                                shape = RoundedCornerShape(16.dp)
-                            ) {
-                                Text("Discard Recording")
+                                Icon(
+                                    imageVector = OtIcons.RecordWave,
+                                    contentDescription = null
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    "Start Recording",
+                                    style = MaterialTheme.typography.labelLarge
+                                )
                             }
                         }
-                    }
 
-                    RecordingStatus.ERROR -> {
-                        Button(
-                            onClick = {
-                                RecordingSessionStore.reset()
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Text("Try Again")
+                        RecordingStatus.RECORDING -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                FilledTonalIconButton(
+                                    onClick = { showDiscardConfirm = true },
+                                    modifier = Modifier
+                                        .size(54.dp)
+                                        .accessibleAction("Discard recording")
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = null)
+                                }
+
+                                FilledTonalIconButton(
+                                    onClick = {
+                                        context.startService(RecordingForegroundService.pauseIntent(context))
+                                    },
+                                    modifier = Modifier
+                                        .size(62.dp)
+                                        .accessibleAction("Pause recording")
+                                ) {
+                                    Icon(Icons.Default.Pause, contentDescription = null)
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        context.startService(RecordingForegroundService.stopIntent(context))
+                                    },
+                                    modifier = Modifier
+                                        .size(68.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.error)
+                                        .accessibleAction("Stop recording"),
+                                    colors = IconButtonDefaults.iconButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    )
+                                ) {
+                                    Icon(
+                                        Icons.Default.Stop,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        RecordingStatus.PAUSED -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                FilledTonalIconButton(
+                                    onClick = { showDiscardConfirm = true },
+                                    modifier = Modifier
+                                        .size(54.dp)
+                                        .accessibleAction("Discard recording")
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = null)
+                                }
+
+                                FilledTonalIconButton(
+                                    onClick = {
+                                        context.startService(RecordingForegroundService.resumeIntent(context))
+                                    },
+                                    modifier = Modifier
+                                        .size(62.dp)
+                                        .accessibleAction("Resume recording")
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        context.startService(RecordingForegroundService.stopIntent(context))
+                                    },
+                                    modifier = Modifier
+                                        .size(68.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.error)
+                                        .accessibleAction("Stop recording"),
+                                    colors = IconButtonDefaults.iconButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    )
+                                ) {
+                                    Icon(
+                                        Icons.Default.Stop,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        RecordingStatus.COMPLETED -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(AppDimens.Space3)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        recordingState.filePath?.let { path ->
+                                            val file = File(path)
+                                            if (file.exists()) {
+                                                onTranscribe(file)
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                    .height(AppDimens.PrimaryTouchTarget),
+                                    shape = AppShapes.Button
+                                ) {
+                                    Icon(OtIcons.Transcript, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        "Transcribe Audio",
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        showDiscardConfirm = true
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(50.dp),
+                                    shape = AppShapes.Button
+                                ) {
+                                    Text("Discard Recording")
+                                }
+                            }
+                        }
+
+                        RecordingStatus.ERROR -> {
+                            Button(
+                                onClick = {
+                                    RecordingSessionStore.reset()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = AppShapes.Button
+                            ) {
+                                Text("Try Again")
+                            }
                         }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

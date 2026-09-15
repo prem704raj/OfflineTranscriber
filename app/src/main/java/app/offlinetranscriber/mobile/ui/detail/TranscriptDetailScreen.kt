@@ -3,13 +3,13 @@ package app.offlinetranscriber.mobile.ui.detail
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,29 +19,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.filled.FactCheck
 import androidx.compose.material.icons.automirrored.filled.FormatAlignLeft
 import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -78,7 +74,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.offlinetranscriber.mobile.TranscriberApplication
 import app.offlinetranscriber.mobile.data.model.MediaType
 import app.offlinetranscriber.mobile.data.model.TranscriptEntity
@@ -87,20 +82,21 @@ import app.offlinetranscriber.mobile.media.MediaAvailability
 import app.offlinetranscriber.mobile.media.MediaAvailabilityChecker
 import app.offlinetranscriber.mobile.playback.AutoFollowController
 import app.offlinetranscriber.mobile.playback.SegmentTimelineIndex
-import app.offlinetranscriber.mobile.theme.AccentEmerald
-import app.offlinetranscriber.mobile.theme.AccentRose
+import app.offlinetranscriber.mobile.theme.OtTranscriptBodyStyle
 import app.offlinetranscriber.mobile.ui.accessibility.accessibleAction
 import app.offlinetranscriber.mobile.ui.accessibility.minimumTouchTarget
 import app.offlinetranscriber.mobile.ui.components.AudioPlayerBar
 import app.offlinetranscriber.mobile.ui.components.rememberAudioPlayerState
+import app.offlinetranscriber.mobile.ui.design.AppDimens
+import app.offlinetranscriber.mobile.ui.design.AppShapes
+import app.offlinetranscriber.mobile.ui.icons.OtIcons
 import app.offlinetranscriber.mobile.ui.layout.ReadingWidthContainer
+import app.offlinetranscriber.mobile.ui.speaker.getSpeakerColor
+import app.offlinetranscriber.mobile.ui.system.OtTranscriptLine
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-import androidx.compose.material.icons.filled.GraphicEq
-import app.offlinetranscriber.mobile.ui.speaker.getSpeakerColor
 
 enum class TranscriptViewMode {
     SEGMENTS,
@@ -118,26 +114,26 @@ fun TranscriptDetailScreen(
     onMeeting: () -> Unit = {},
     onSpeaker: () -> Unit = {},
     onExport: () -> Unit = {},
-    onCaptionStudio: (() -> Unit)? = null,
-    onRename: (String) -> Unit,
-    onDelete: () -> Unit
+    onCaptionStudio: () -> Unit = {},
+    onRename: (String) -> Unit = {},
+    onDelete: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val app = remember(context) { context.applicationContext as TranscriberApplication }
-    val knowledgeRepository = remember(context) { app.knowledgeRepository }
-    val speakerRepository = remember(context) { app.speakerRepository }
+    val app = context.applicationContext as TranscriberApplication
+    val knowledgeRepository = app.knowledgeRepository
+    val speakerRepository = app.speakerRepository
 
     val bookmarkedSegmentIds by knowledgeRepository
         .observeBookmarkedSegmentIds(transcript.id)
+        .collectAsState(initial = emptySet())
+
+    val clusters by speakerRepository
+        .observeClusters(transcript.id)
         .collectAsState(initial = emptyList())
 
     val assignments by speakerRepository
         .observeAssignments(transcript.id)
-        .collectAsState(initial = emptyList())
-
-    val clusters by speakerRepository
-        .observeClusters(transcript.id)
         .collectAsState(initial = emptyList())
 
     val assignmentMap = remember(assignments) {
@@ -146,7 +142,7 @@ fun TranscriptDetailScreen(
 
     var selectedSpeakerFilterId by remember { mutableStateOf<Long?>(null) }
 
-    val mediaChecker = remember(context) { MediaAvailabilityChecker(context) }
+    val mediaChecker = remember { MediaAvailabilityChecker(context) }
     val mediaAvailability = remember(transcript.audioUriString) {
         mediaChecker.check(transcript.audioUriString)
     }
@@ -228,15 +224,16 @@ fun TranscriptDetailScreen(
                     ) {
                         Text(
                             text = transcript.title,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                             maxLines = 1,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f, fill = false)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Rename",
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(15.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -246,7 +243,10 @@ fun TranscriptDetailScreen(
                         onClick = onBack,
                         modifier = Modifier.minimumTouchTarget()
                     ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
                     }
                 },
                 actions = {
@@ -257,7 +257,7 @@ fun TranscriptDetailScreen(
                         modifier = Modifier.accessibleAction("Ask this transcript")
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Chat,
+                            imageVector = OtIcons.Evidence,
                             contentDescription = "Ask this transcript",
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -268,7 +268,7 @@ fun TranscriptDetailScreen(
                         modifier = Modifier.accessibleAction("Study this transcript")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.School,
+                            imageVector = OtIcons.Study,
                             contentDescription = "Study this transcript",
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -292,7 +292,7 @@ fun TranscriptDetailScreen(
                             DropdownMenuItem(
                                 text = { Text("Speaker Diarization") },
                                 leadingIcon = {
-                                    Icon(Icons.Default.GraphicEq, contentDescription = null)
+                                    Icon(OtIcons.Speaker, contentDescription = null)
                                 },
                                 onClick = {
                                     showMoreMenu = false
@@ -303,7 +303,7 @@ fun TranscriptDetailScreen(
                             DropdownMenuItem(
                                 text = { Text("Meeting Intelligence") },
                                 leadingIcon = {
-                                    Icon(Icons.AutoMirrored.Filled.FactCheck, contentDescription = null)
+                                    Icon(OtIcons.Evidence, contentDescription = null)
                                 },
                                 onClick = {
                                     showMoreMenu = false
@@ -311,7 +311,7 @@ fun TranscriptDetailScreen(
                                 }
                             )
 
-                            if (transcript.mediaType == MediaType.VIDEO && onCaptionStudio != null) {
+                            if (transcript.mediaType == MediaType.VIDEO) {
                                 DropdownMenuItem(
                                     text = { Text("Caption Studio") },
                                     leadingIcon = {
@@ -324,10 +324,12 @@ fun TranscriptDetailScreen(
                                 )
                             }
 
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
                             DropdownMenuItem(
                                 text = { Text("Export & Share") },
                                 leadingIcon = {
-                                    Icon(Icons.Default.Share, contentDescription = null)
+                                    Icon(OtIcons.Export, contentDescription = null)
                                 },
                                 onClick = {
                                     showMoreMenu = false
@@ -360,12 +362,16 @@ fun TranscriptDetailScreen(
                                 }
                             )
 
-                            HorizontalDivider()
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                             DropdownMenuItem(
-                                text = { Text("Delete", color = AccentRose) },
+                                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
                                 leadingIcon = {
-                                    Icon(Icons.Default.Delete, contentDescription = null, tint = AccentRose)
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
                                 },
                                 onClick = {
                                     showMoreMenu = false
@@ -376,15 +382,14 @@ fun TranscriptDetailScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
         },
         bottomBar = {
             if (isMediaAvailable && !transcript.audioUriString.isNullOrBlank()) {
                 AudioPlayerBar(
-                    state = audioPlayerState,
-                    modifier = Modifier.padding(16.dp)
+                    state = audioPlayerState
                 )
             }
         }
@@ -397,18 +402,18 @@ fun TranscriptDetailScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 4.dp)
+                    .padding(horizontal = AppDimens.ScreenHorizontal)
             ) {
                 // Missing audio warning banner
                 if (!isMediaAvailable) {
                     Card(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = AppShapes.Button,
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                            containerColor = MaterialTheme.colorScheme.errorContainer
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp)
+                            .padding(vertical = AppDimens.Space2)
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
@@ -438,32 +443,28 @@ fun TranscriptDetailScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp, bottom = 4.dp),
+                        .padding(top = AppDimens.Space2, bottom = AppDimens.Space1),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "${filteredSegments.size} segments • ${TranscriptSegment.formatTime(transcript.audioDurationMs)}",
-                        style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ) {
-                        Text(
-                            text = dateFormatted,
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
+                    Text(
+                        text = dateFormatted,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 // Search bar & Mode toggle
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = AppDimens.Space2),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -471,9 +472,15 @@ fun TranscriptDetailScreen(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         placeholder = { Text("Search transcript...") },
-                        leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = OtIcons.SearchTimeline,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
                         singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = AppShapes.Control,
                         modifier = Modifier.weight(1f)
                     )
 
@@ -481,14 +488,26 @@ fun TranscriptDetailScreen(
                         FilterChip(
                             selected = viewMode == TranscriptViewMode.SEGMENTS,
                             onClick = { viewMode = TranscriptViewMode.SEGMENTS },
-                            label = { Icon(imageVector = Icons.AutoMirrored.Filled.ViewList, contentDescription = "Segments", modifier = Modifier.size(18.dp)) },
+                            label = {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ViewList,
+                                    contentDescription = "Segments",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
                             modifier = Modifier.minimumTouchTarget()
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         FilterChip(
                             selected = viewMode == TranscriptViewMode.FULL_TEXT,
                             onClick = { viewMode = TranscriptViewMode.FULL_TEXT },
-                            label = { Icon(imageVector = Icons.AutoMirrored.Filled.FormatAlignLeft, contentDescription = "Full Text", modifier = Modifier.size(18.dp)) },
+                            label = {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.FormatAlignLeft,
+                                    contentDescription = "Full Text",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
                             modifier = Modifier.minimumTouchTarget()
                         )
                     }
@@ -496,10 +515,10 @@ fun TranscriptDetailScreen(
 
                 // Speaker Filter Chips Row
                 if (clusters.isNotEmpty() && viewMode == TranscriptViewMode.SEGMENTS) {
-                    androidx.compose.foundation.lazy.LazyRow(
+                    LazyRow(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = AppDimens.Space1),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -522,7 +541,7 @@ fun TranscriptDetailScreen(
                                     Box(
                                         modifier = Modifier
                                             .size(8.dp)
-                                            .clip(androidx.compose.foundation.shape.CircleShape)
+                                            .clip(CircleShape)
                                             .background(color)
                                     )
                                 },
@@ -547,6 +566,7 @@ fun TranscriptDetailScreen(
                                     listState.animateScrollToItem(activeIndex, scrollOffset = -120)
                                 }
                             },
+                            shape = AppShapes.Button,
                             modifier = Modifier.minimumTouchTarget()
                         ) {
                             Text("Jump to current moment")
@@ -559,20 +579,23 @@ fun TranscriptDetailScreen(
                 // Transcript Body
                 when (viewMode) {
                     TranscriptViewMode.FULL_TEXT -> {
-                        SelectionContainer {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                item {
-                                    Text(
-                                        text = transcript.fullText,
-                                        style = MaterialTheme.typography.bodyLarge.copy(
-                                            lineHeight = 26.sp,
+                        Surface(
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            SelectionContainer {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(vertical = AppDimens.Space3)
+                                ) {
+                                    item {
+                                        Text(
+                                            text = transcript.fullText,
+                                            style = OtTranscriptBodyStyle,
                                             color = MaterialTheme.colorScheme.onSurface
-                                        ),
-                                        modifier = Modifier.padding(8.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(80.dp))
+                                        )
+                                        Spacer(modifier = Modifier.height(80.dp))
+                                    }
                                 }
                             }
                         }
@@ -581,63 +604,58 @@ fun TranscriptDetailScreen(
                     TranscriptViewMode.SEGMENTS -> {
                         LazyColumn(
                             state = listState,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(AppDimens.Space2),
                             modifier = Modifier.fillMaxSize()
                         ) {
                             itemsIndexed(filteredSegments, key = { _, it -> it.id }) { index, segment ->
                                 val isBookmarked = segment.id in bookmarkedSegmentIds
                                 val isPlayingNow = isMediaAvailable && audioPlayerState.isPlaying && index == activeIndex
                                 val currentAssignment = assignmentMap[segment.id]
-                                val prevAssignment = if (index > 0) assignmentMap[filteredSegments[index - 1].id] else null
-                                val isSpeakerTransition = currentAssignment != null && (prevAssignment?.speakerClusterId != currentAssignment.speakerClusterId)
+                                val speakerColor = currentAssignment?.let { getSpeakerColor(it.speakerIndex) }
 
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    if (isSpeakerTransition && currentAssignment != null) {
-                                        val color = getSpeakerColor(currentAssignment.speakerIndex)
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(top = 8.dp, bottom = 4.dp, start = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(10.dp)
-                                                    .clip(androidx.compose.foundation.shape.CircleShape)
-                                                    .background(color)
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(
-                                                text = currentAssignment.customName,
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
-
-                                    SegmentCard(
-                                        segment = segment,
-                                        isBookmarked = isBookmarked,
-                                        isPlayingNow = isPlayingNow,
-                                        speakerAssignment = currentAssignment,
-                                        onClick = {
-                                            if (isMediaAvailable) {
-                                                audioPlayerState.seekTo(segment.startMs)
-                                                if (!audioPlayerState.isPlaying) {
-                                                    audioPlayerState.togglePlay()
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        OtTranscriptLine(
+                                            timestamp = TranscriptSegment.formatTime(segment.startMs),
+                                            text = segment.text,
+                                            active = isPlayingNow,
+                                            bookmarked = isBookmarked,
+                                            speakerLabel = currentAssignment?.customName,
+                                            speakerColor = speakerColor,
+                                            onSeek = {
+                                                if (isMediaAvailable) {
+                                                    audioPlayerState.seekTo(segment.startMs)
+                                                    if (!audioPlayerState.isPlaying) {
+                                                        audioPlayerState.togglePlay()
+                                                    }
                                                 }
                                             }
-                                        },
-                                        onToggleBookmark = {
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = {
                                             coroutineScope.launch {
                                                 knowledgeRepository.toggleBookmark(
                                                     transcriptId = transcript.id,
                                                     segmentId = segment.id
                                                 )
                                             }
-                                        }
-                                    )
+                                        },
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .accessibleAction(if (isBookmarked) "Remove bookmark" else "Bookmark moment")
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                            contentDescription = null,
+                                            tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
 
@@ -661,8 +679,10 @@ fun TranscriptDetailScreen(
                 OutlinedTextField(
                     value = newTitle,
                     onValueChange = { newTitle = it },
+                    label = { Text("Title") },
                     singleLine = true,
-                    label = { Text("Title") }
+                    shape = AppShapes.Control,
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             confirmButton = {
@@ -703,7 +723,7 @@ fun TranscriptDetailScreen(
                     },
                     modifier = Modifier.minimumTouchTarget()
                 ) {
-                    Text("Delete", color = AccentRose)
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -715,101 +735,5 @@ fun TranscriptDetailScreen(
                 }
             }
         )
-    }
-}
-
-@Composable
-fun SegmentCard(
-    segment: TranscriptSegment,
-    isBookmarked: Boolean,
-    isPlayingNow: Boolean,
-    speakerAssignment: app.offlinetranscriber.mobile.data.database.SpeakerAssignmentRow? = null,
-    onClick: () -> Unit,
-    onToggleBookmark: () -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isPlayingNow) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-            }
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .clickable { onClick() }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (isPlayingNow) Icons.Default.PlayArrow else Icons.Default.AccessTime,
-                        contentDescription = null,
-                        tint = if (isPlayingNow) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = segment.formattedTimestamp,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = if (isPlayingNow) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-
-                    if (speakerAssignment != null) {
-                        val color = getSpeakerColor(speakerAssignment.speakerIndex)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = color.copy(alpha = 0.15f)
-                        ) {
-                            Text(
-                                text = speakerAssignment.customName,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = color
-                                ),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-
-                IconButton(
-                    onClick = onToggleBookmark,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .accessibleAction(if (isBookmarked) "Remove bookmark" else "Bookmark moment")
-                ) {
-                    Icon(
-                        imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        contentDescription = null,
-                        tint = if (isBookmarked) AccentEmerald else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = segment.text,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    lineHeight = 22.sp,
-                    color = if (isPlayingNow) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                )
-            )
-        }
     }
 }

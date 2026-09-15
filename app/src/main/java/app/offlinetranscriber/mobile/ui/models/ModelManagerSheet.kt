@@ -48,8 +48,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.offlinetranscriber.mobile.theme.AccentEmerald
-import app.offlinetranscriber.mobile.theme.AccentRose
 import app.offlinetranscriber.mobile.transcription.DownloadState
 import app.offlinetranscriber.mobile.transcription.ModelManager
 import app.offlinetranscriber.mobile.transcription.WhisperModelInfo
@@ -207,13 +205,13 @@ fun ModelItemCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (model.isRecommended) {
                         Surface(
-                            color = AccentEmerald.copy(alpha = 0.15f),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
                             shape = CircleShape,
                             modifier = Modifier.padding(end = 8.dp)
                         ) {
                             Text(
                                 text = "RECOMMENDED",
-                                color = AccentEmerald,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -282,7 +280,7 @@ fun ModelItemCard(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Error: ${downloadState.message}",
-                        color = AccentRose,
+                        color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(modifier = Modifier.height(6.dp))
@@ -318,7 +316,7 @@ fun ModelItemCard(
                                 Icon(
                                     imageVector = Icons.Default.Delete,
                                     contentDescription = "Delete Model",
-                                    tint = AccentRose,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }

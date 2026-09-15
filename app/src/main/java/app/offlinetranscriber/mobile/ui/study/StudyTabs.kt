@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,20 +18,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -40,6 +41,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -49,8 +51,15 @@ import app.offlinetranscriber.mobile.data.model.StudyPackWithContent
 import app.offlinetranscriber.mobile.domain.model.TranscriptSegment
 import app.offlinetranscriber.mobile.study.StudyUiState
 import app.offlinetranscriber.mobile.study.model.StudyEngineType
+import app.offlinetranscriber.mobile.theme.OtPlaybackTimeStyle
+import app.offlinetranscriber.mobile.theme.OtTranscriptBodyStyle
 import app.offlinetranscriber.mobile.ui.accessibility.minimumTouchTarget
+import app.offlinetranscriber.mobile.ui.design.AppDimens
+import app.offlinetranscriber.mobile.ui.design.AppShapes
 import app.offlinetranscriber.mobile.ui.layout.ReadingWidthContainer
+import app.offlinetranscriber.mobile.ui.system.OtSectionHeader
+import app.offlinetranscriber.mobile.ui.system.OtStatusKind
+import app.offlinetranscriber.mobile.ui.system.OtStatusLabel
 
 @Composable
 fun OverviewTab(
@@ -60,70 +69,55 @@ fun OverviewTab(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                horizontal = 20.dp,
-                vertical = 20.dp
+                horizontal = AppDimens.ScreenHorizontal,
+                vertical = AppDimens.Space4
             ),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(AppDimens.Space3)
         ) {
             item {
-                AssistChip(
-                    onClick = {},
-                    label = {
-                        Text(
-                            if (
-                                pack.pack.engine ==
-                                StudyEngineType.GEMINI_NANO.name
-                            ) {
-                                "Generated on your device"
-                            } else {
-                                "Classic offline study tools"
-                            }
-                        )
-                    }
+                val labelText = if (pack.pack.engine == StudyEngineType.GEMINI_NANO.name) {
+                    "Generated on your device"
+                } else {
+                    "Classic offline study tools"
+                }
+                OtStatusLabel(
+                    text = labelText,
+                    kind = OtStatusKind.LOCAL
                 )
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AppDimens.Space3))
 
-                Text(
-                    text = "Key points",
-                    style = MaterialTheme.typography.titleLarge
-                )
+                OtSectionHeader(title = "Key points")
             }
 
             items(
                 count = pack.keyPoints.size,
-                key = {
-                    pack.keyPoints
-                        .sortedBy { p -> p.position }[it].id
-                }
+                key = { pack.keyPoints.sortedBy { p -> p.position }[it].id }
             ) { index ->
-                val point =
-                    pack.keyPoints
-                        .sortedBy { it.position }[index]
+                val point = pack.keyPoints.sortedBy { p -> p.position }[index]
 
-                Surface(
-                    color = MaterialTheme.colorScheme
-                        .surfaceVariant.copy(alpha = 0.45f),
-                    shape = RoundedCornerShape(18.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.Top
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text(
-                            text = "${index + 1}",
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
+                    Text(
+                        text = "${index + 1}.",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.width(28.dp)
+                    )
 
-                        Spacer(Modifier.padding(7.dp))
-
-                        Text(
-                            text = point.text,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
+                    Text(
+                        text = point.text,
+                        style = OtTranscriptBodyStyle,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
     }
@@ -134,79 +128,68 @@ fun ChaptersTab(
     pack: StudyPackWithContent,
     onOpenChapter: (Long) -> Unit
 ) {
-    val chapters =
-        pack.chapters.sortedBy { it.position }
+    val chapters = pack.chapters.sortedBy { it.startMs }
+
+    if (chapters.isEmpty()) {
+        EmptyStudySection("No chapter breakdown was generated for this recording.")
+        return
+    }
 
     ReadingWidthContainer(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                horizontal = 20.dp,
-                vertical = 20.dp
+                horizontal = AppDimens.ScreenHorizontal,
+                vertical = AppDimens.Space4
             ),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(AppDimens.Space2)
         ) {
-            if (chapters.isEmpty()) {
-                item {
-                    EmptyStudySection(
-                        "No chapters were generated."
-                    )
-                }
-            }
-
-            items(
-                count = chapters.size,
-                key = { chapters[it].id }
-            ) { index ->
-                val chapter = chapters[index]
-
-                Surface(
+            items(chapters, key = { it.id }) { chapter ->
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
-                            onOpenChapter(
-                                chapter.startMs
-                            )
-                        },
-                    color = MaterialTheme.colorScheme
-                        .surfaceVariant.copy(alpha = 0.45f),
-                    shape = RoundedCornerShape(20.dp)
+                        .clickable(role = Role.Button) {
+                            onOpenChapter(chapter.startMs)
+                        }
+                        .padding(vertical = 10.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(17.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Top
                     ) {
-                        AssistChip(
-                            onClick = {
-                                onOpenChapter(
-                                    chapter.startMs
-                                )
-                            },
-                            label = {
-                                Text(
-                                    TranscriptSegment.formatTime(
-                                        chapter.startMs
-                                    )
-                                )
-                            },
-                            modifier = Modifier.minimumTouchTarget()
-                        )
+                        Box(
+                            modifier = Modifier
+                                .width(AppDimens.TranscriptGutterWidth)
+                                .padding(top = 2.dp)
+                        ) {
+                            Text(
+                                text = TranscriptSegment.formatTime(chapter.startMs),
+                                style = OtPlaybackTimeStyle,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
 
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.width(8.dp))
 
-                        Text(
-                            text = chapter.title,
-                            style = MaterialTheme.typography.titleLarge
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = chapter.title,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
 
-                        Spacer(Modifier.height(5.dp))
+                            Spacer(Modifier.height(4.dp))
 
-                        Text(
-                            text = chapter.summary,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme
-                                .onSurfaceVariant
-                        )
+                            Text(
+                                text = chapter.summary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
+
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
         }
@@ -224,19 +207,12 @@ fun FlashcardsTab(
     onReview: () -> Unit
 ) {
     val pack = state.pack ?: return
-
     val byId = pack.flashcards.associateBy { it.id }
-
-    val currentId =
-        state.flashcardOrder
-            .getOrNull(state.flashcardIndex)
-
+    val currentId = state.flashcardOrder.getOrNull(state.flashcardIndex)
     val card = currentId?.let(byId::get)
 
     if (card == null) {
-        EmptyStudySection(
-            "No flashcards were generated."
-        )
+        EmptyStudySection("No flashcards were generated.")
         return
     }
 
@@ -244,7 +220,7 @@ fun FlashcardsTab(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp),
+                .padding(AppDimens.ScreenHorizontal),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
@@ -253,39 +229,36 @@ fun FlashcardsTab(
             ) {
                 Text(
                     text = "${state.flashcardIndex + 1} / ${state.flashcardOrder.size}",
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Spacer(Modifier.weight(1f))
 
                 TextButton(
                     onClick = onShuffle,
+                    shape = AppShapes.Control,
                     modifier = Modifier.minimumTouchTarget()
                 ) {
-                    Icon(
-                        Icons.Default.Shuffle,
-                        null
-                    )
+                    Icon(Icons.Default.Shuffle, contentDescription = null)
                     Spacer(Modifier.padding(3.dp))
                     Text("Shuffle")
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(AppDimens.Space3))
 
             val showingBack = state.flashcardShowingBack
-            val accessibilityLabel =
-                if (showingBack) {
-                    "Answer. ${card.back}. Tap to show question."
-                } else {
-                    "Question. ${card.front}. Tap to reveal answer."
-                }
+            val accessibilityLabel = if (showingBack) {
+                "Answer. ${card.back}. Tap to show question."
+            } else {
+                "Question. ${card.front}. Tap to reveal answer."
+            }
 
             AnimatedContent(
                 targetState = showingBack,
                 transitionSpec = {
-                    fadeIn(tween(180)) togetherWith
-                        fadeOut(tween(120))
+                    fadeIn(tween(180)) togetherWith fadeOut(tween(120))
                 },
                 label = "flashcard-side"
             ) { isBack ->
@@ -293,24 +266,28 @@ fun FlashcardsTab(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 260.dp)
-                        .clickable(onClick = onFlip)
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                            shape = AppShapes.Hero
+                        )
+                        .clickable(role = Role.Button, onClick = onFlip)
                         .semantics(mergeDescendants = true) {
                             contentDescription = accessibilityLabel
                         },
                     colors = CardDefaults.cardColors(
-                        containerColor =
-                            if (isBack) {
-                                MaterialTheme.colorScheme.secondaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.primaryContainer
-                            }
+                        containerColor = if (isBack) {
+                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                        } else {
+                            MaterialTheme.colorScheme.surface
+                        }
                     ),
-                    shape = RoundedCornerShape(28.dp)
+                    shape = AppShapes.Hero
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(26.dp),
+                            .padding(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
@@ -319,7 +296,8 @@ fun FlashcardsTab(
                             Text(
                                 text = if (isBack) card.back else card.front,
                                 style = MaterialTheme.typography.headlineSmall,
-                                textAlign = TextAlign.Center
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
 
                             Spacer(Modifier.height(20.dp))
@@ -329,15 +307,14 @@ fun FlashcardsTab(
                             ) {
                                 Icon(
                                     Icons.Default.Visibility,
-                                    null
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(Modifier.padding(3.dp))
                                 Text(
-                                    if (isBack) {
-                                        "Tap to see question"
-                                    } else {
-                                        "Tap to reveal"
-                                    }
+                                    text = if (isBack) "Tap to see question" else "Tap to reveal",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -345,7 +322,7 @@ fun FlashcardsTab(
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(AppDimens.Space4))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -353,6 +330,7 @@ fun FlashcardsTab(
             ) {
                 OutlinedButton(
                     onClick = onPrevious,
+                    shape = AppShapes.Button,
                     modifier = Modifier.weight(1f).minimumTouchTarget()
                 ) {
                     Text("Previous")
@@ -360,13 +338,14 @@ fun FlashcardsTab(
 
                 OutlinedButton(
                     onClick = onNext,
+                    shape = AppShapes.Button,
                     modifier = Modifier.weight(1f).minimumTouchTarget()
                 ) {
                     Text("Next")
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(AppDimens.Space2))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -374,6 +353,7 @@ fun FlashcardsTab(
             ) {
                 FilledTonalButton(
                     onClick = onReview,
+                    shape = AppShapes.Button,
                     modifier = Modifier.weight(1f).minimumTouchTarget()
                 ) {
                     Text("Review")
@@ -381,12 +361,10 @@ fun FlashcardsTab(
 
                 Button(
                     onClick = onKnown,
+                    shape = AppShapes.Button,
                     modifier = Modifier.weight(1f).minimumTouchTarget()
                 ) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        null
-                    )
+                    Icon(Icons.Default.CheckCircle, contentDescription = null)
                     Spacer(Modifier.padding(3.dp))
                     Text("Known")
                 }
@@ -402,16 +380,13 @@ fun QuizTab(
     onNext: () -> Unit,
     onRetry: () -> Unit
 ) {
-    val questions =
-        state.pack
-            ?.quizQuestions
-            ?.sortedBy { it.position }
-            .orEmpty()
+    val questions = state.pack
+        ?.quizQuestions
+        ?.sortedBy { it.position }
+        .orEmpty()
 
     if (questions.isEmpty()) {
-        EmptyStudySection(
-            "Not enough distinct study material was available to build a reliable multiple-choice quiz."
-        )
+        EmptyStudySection("Not enough distinct study material was available to build a reliable multiple-choice quiz.")
         return
     }
 
@@ -428,34 +403,35 @@ fun QuizTab(
             ) {
                 Icon(
                     Icons.Default.CheckCircle,
-                    null,
-                    tint = MaterialTheme.colorScheme.primary
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(8.dp)
                 )
 
                 Spacer(Modifier.height(16.dp))
 
                 Text(
                     text = "Quiz complete",
-                    style = MaterialTheme.typography.headlineMedium
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
 
                 Spacer(Modifier.height(8.dp))
 
                 Text(
                     text = "${attempt.score} / ${questions.size}",
-                    style = MaterialTheme.typography.displaySmall
+                    style = MaterialTheme.typography.displaySmall,
+                    color = MaterialTheme.colorScheme.primary
                 )
 
                 Spacer(Modifier.height(20.dp))
 
                 Button(
                     onClick = onRetry,
+                    shape = AppShapes.Button,
                     modifier = Modifier.minimumTouchTarget()
                 ) {
-                    Icon(
-                        Icons.Default.Refresh,
-                        null
-                    )
+                    Icon(Icons.Default.Refresh, contentDescription = null)
                     Spacer(Modifier.padding(3.dp))
                     Text("Try again")
                 }
@@ -463,17 +439,13 @@ fun QuizTab(
             return@ReadingWidthContainer
         }
 
-        val question =
-            questions.getOrNull(
-                attempt.questionIndex
-            ) ?: return@ReadingWidthContainer
-
+        val question = questions.getOrNull(attempt.questionIndex) ?: return@ReadingWidthContainer
         val options = question.options()
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp)
+                .padding(AppDimens.ScreenHorizontal)
         ) {
             Text(
                 text = "Question ${attempt.questionIndex + 1} of ${questions.size}",
@@ -481,91 +453,84 @@ fun QuizTab(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             Text(
                 text = question.question,
-                style = MaterialTheme.typography.headlineSmall
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground
             )
 
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(18.dp))
 
             options.forEachIndexed { index, option ->
-                val selected =
-                    attempt.selectedIndex == index
+                val selected = attempt.selectedIndex == index
+                val correct = question.correctIndex == index
 
-                val correct =
-                    question.correctIndex == index
+                val label = when {
+                    !attempt.answered -> option
+                    selected && correct -> "Correct — $option"
+                    selected && !correct -> "Incorrect — $option"
+                    correct -> "Correct answer — $option"
+                    else -> option
+                }
 
-                val label =
-                    when {
-                        !attempt.answered -> option
-                        selected && correct ->
-                            "Correct — $option"
-                        selected && !correct ->
-                            "Incorrect — $option"
-                        correct ->
-                            "Correct answer — $option"
-                        else -> option
-                    }
+                val containerColor = if (attempt.answered && correct) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else if (attempt.answered && selected && !correct) {
+                    MaterialTheme.colorScheme.errorContainer
+                } else {
+                    MaterialTheme.colorScheme.surface
+                }
 
-                val container =
-                    if (
-                        attempt.answered &&
-                        correct
-                    ) {
-                        MaterialTheme.colorScheme
-                            .primaryContainer
-                    } else if (
-                        attempt.answered &&
-                        selected &&
-                        !correct
-                    ) {
-                        MaterialTheme.colorScheme
-                            .errorContainer
-                    } else {
-                        MaterialTheme.colorScheme
-                            .surfaceVariant.copy(alpha = 0.45f)
-                    }
+                val borderModifier = Modifier.border(
+                    width = 1.dp,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                    shape = AppShapes.Control
+                )
 
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(
-                            enabled = !attempt.answered
-                        ) {
+                        .then(borderModifier)
+                        .clickable(enabled = !attempt.answered) {
                             onAnswer(index)
                         },
-                    color = container,
-                    shape = RoundedCornerShape(18.dp)
+                    color = containerColor,
+                    shape = AppShapes.Control
                 ) {
                     Text(
                         text = label,
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.bodyLarge
+                        modifier = Modifier.padding(14.dp),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
-                Spacer(Modifier.height(9.dp))
+                Spacer(Modifier.height(8.dp))
             }
 
             if (attempt.answered) {
                 Spacer(Modifier.height(10.dp))
 
                 Surface(
-                    color = MaterialTheme.colorScheme
-                        .secondaryContainer,
-                    shape = RoundedCornerShape(18.dp)
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = AppShapes.Control
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier.padding(14.dp)
                     ) {
                         Text(
-                            "Explanation",
-                            fontWeight = FontWeight.SemiBold
+                            text = "Explanation",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(Modifier.height(5.dp))
-                        Text(question.explanation)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = question.explanation,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
 
@@ -573,15 +538,13 @@ fun QuizTab(
 
                 Button(
                     onClick = onNext,
+                    shape = AppShapes.Button,
                     modifier = Modifier
                         .fillMaxWidth()
                         .minimumTouchTarget()
                 ) {
                     Text(
-                        if (
-                            attempt.questionIndex ==
-                            questions.lastIndex
-                        ) {
+                        if (attempt.questionIndex == questions.lastIndex) {
                             "See score"
                         } else {
                             "Next question"
@@ -606,7 +569,7 @@ private fun EmptyStudySection(
     ) {
         Icon(
             Icons.Default.WarningAmber,
-            null,
+            contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -615,7 +578,8 @@ private fun EmptyStudySection(
         Text(
             text = message,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium
         )
     }
 }

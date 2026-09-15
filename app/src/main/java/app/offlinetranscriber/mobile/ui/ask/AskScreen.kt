@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -16,14 +15,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +32,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,6 +48,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.offlinetranscriber.mobile.ask.model.AskScope
 import app.offlinetranscriber.mobile.billing.ProFeature
 import app.offlinetranscriber.mobile.ui.accessibility.minimumTouchTarget
+import app.offlinetranscriber.mobile.ui.design.AppDimens
+import app.offlinetranscriber.mobile.ui.design.AppShapes
+import app.offlinetranscriber.mobile.ui.icons.OtIcons
 import app.offlinetranscriber.mobile.ui.layout.ReadingWidthContainer
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,7 +91,7 @@ fun AskScreen(
                             } else {
                                 "Ask your library"
                             },
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                             modifier = Modifier.semantics { heading() }
                         )
                         if (state.scope == AskScope.TRANSCRIPT && !state.transcriptTitle.isNullOrBlank()) {
@@ -121,7 +123,7 @@ fun AskScreen(
                                 modifier = Modifier.minimumTouchTarget()
                             ) {
                                 Icon(
-                                    androidx.compose.material.icons.Icons.Default.Share,
+                                    imageVector = OtIcons.Export,
                                     contentDescription = "Export & Share"
                                 )
                             }
@@ -137,7 +139,10 @@ fun AskScreen(
                             )
                         }
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { padding ->
@@ -164,13 +169,16 @@ fun AskScreen(
                                     }
                                 )
                             },
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                            modifier = Modifier.padding(horizontal = AppDimens.ScreenHorizontal)
                         )
                     } else {
                         LazyColumn(
                             state = listState,
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                            contentPadding = PaddingValues(
+                                horizontal = AppDimens.ScreenHorizontal,
+                                vertical = AppDimens.Space3
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(AppDimens.Space3),
                             modifier = Modifier.fillMaxSize()
                         ) {
                             items(
@@ -192,16 +200,16 @@ fun AskScreen(
                             if (state.asking) {
                                 item(key = "loading_indicator") {
                                     Surface(
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                        shape = RoundedCornerShape(16.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = AppShapes.Control,
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(16.dp),
+                                            modifier = Modifier.padding(14.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             CircularProgressIndicator(
-                                                modifier = Modifier.size(20.dp),
+                                                modifier = Modifier.size(18.dp),
                                                 strokeWidth = 2.dp,
                                                 color = MaterialTheme.colorScheme.primary
                                             )
@@ -219,16 +227,20 @@ fun AskScreen(
                     }
                 }
 
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
                 // Question Input Bar
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                            .padding(
+                                horizontal = AppDimens.ScreenHorizontal,
+                                vertical = AppDimens.Space2
+                            ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedTextField(
@@ -244,7 +256,7 @@ fun AskScreen(
                                 )
                             },
                             maxLines = 4,
-                            shape = RoundedCornerShape(20.dp),
+                            shape = AppShapes.Control,
                             modifier = Modifier.weight(1f)
                         )
 

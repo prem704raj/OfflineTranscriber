@@ -2,31 +2,67 @@ package app.offlinetranscriber.mobile.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+/*
+ * Offline Transcriber — Recorded Paper palette
+ *
+ * Semantic rule:
+ * ActionCobalt   = action / selection / active playback
+ * LocalTeal      = verified local/private/safe state
+ * ProcessAmber   = queued/running/downloading state
+ * Destructive    = destructive/error only
+ *
+ * Neutrals create hierarchy but carry no semantic meaning.
+ */
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+// Primary semantic colors — light theme
+val ActionCobalt = Color(0xFF3157C8)
+val ActionCobaltDeep = Color(0xFF2949B0)
+val ActionCobaltSoft = Color(0xFFE8EDFF)
 
-// Premium Transcriber Palette
-val PrimaryIndigo = Color(0xFF4F46E5)
-val PrimaryIndigoDark = Color(0xFF3730A3)
-val PrimaryIndigoLight = Color(0xFF818CF8)
-val AccentEmerald = Color(0xFF10B981)
-val AccentEmeraldLight = Color(0xFF34D399)
-val AccentAmber = Color(0xFFF59E0B)
-val AccentRose = Color(0xFFF43F5E)
+val LocalTeal = Color(0xFF08786E)
+val LocalTealSoft = Color(0xFFE1F3F0)
 
-val DarkBackground = Color(0xFF0F172A)
-val DarkSurface = Color(0xFF1E293B)
-val DarkSurfaceVariant = Color(0xFF334155)
-val DarkTextPrimary = Color(0xFFF8FAFC)
-val DarkTextSecondary = Color(0xFF94A3B8)
+val ProcessAmber = Color(0xFFA65D00)
+val ProcessAmberSoft = Color(0xFFFFEBD3)
 
-val LightBackground = Color(0xFFF8FAFC)
-val LightSurface = Color(0xFFFFFFFF)
-val LightSurfaceVariant = Color(0xFFF1F5F9)
-val LightTextPrimary = Color(0xFF0F172A)
-val LightTextSecondary = Color(0xFF64748B)
+val DestructiveBrick = Color(0xFFB42318)
+val DestructiveBrickSoft = Color(0xFFFFE8E5)
+
+// Neutral light system
+val CanvasMist = Color(0xFFF3F5F7)
+val SheetWhite = Color(0xFFFFFFFF)
+
+val Ink950 = Color(0xFF18202A)
+val Ink700 = Color(0xFF46515E)
+val Ink500 = Color(0xFF687482)
+
+val Line300 = Color(0xFFD6DCE3)
+val Line200 = Color(0xFFE5E9EE)
+val UtilityFill = Color(0xFFEDF0F3)
+
+// Dark theme — charcoal document environment, not black
+val DarkCanvas = Color(0xFF20252B)
+val DarkSheet = Color(0xFF292F36)
+val DarkUtility = Color(0xFF333A42)
+val DarkLine = Color(0xFF46505A)
+
+val DarkTextPrimary = Color(0xFFF3F5F7)
+val DarkTextSecondary = Color(0xFFBBC3CC)
+
+val DarkActionCobalt = Color(0xFF8CA7FF)
+val DarkActionCobaltSoft = Color(0xFF35446C)
+
+val DarkLocalTeal = Color(0xFF64C7BB)
+val DarkLocalTealSoft = Color(0xFF244944)
+
+val DarkProcessAmber = Color(0xFFF0AD5A)
+val DarkProcessAmberSoft = Color(0xFF5A4024)
+
+val DarkDestructive = Color(0xFFFF8F86)
+val DarkDestructiveSoft = Color(0xFF5B302D)
+
+// Speaker palette: restrained categorical markers, never a rainbow UI.
+val SpeakerBlue = Color(0xFF4667B1)
+val SpeakerTeal = Color(0xFF3C756F)
+val SpeakerPlum = Color(0xFF765A87)
+val SpeakerOchre = Color(0xFF8A6A36)

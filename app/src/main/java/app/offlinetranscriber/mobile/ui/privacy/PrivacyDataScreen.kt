@@ -47,7 +47,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import app.offlinetranscriber.mobile.theme.AccentRose
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -207,7 +206,7 @@ fun PrivacyDataScreen(
                     confirmAll = true
                 },
                 enabled = !state.busy,
-                colors = ButtonDefaults.buttonColors(containerColor = AccentRose),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             ) {
@@ -279,7 +278,7 @@ fun PrivacyDataScreen(
                             confirmAll = false
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentRose),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     enabled = (typedDelete == "DELETE")
                 ) {
                     Text("Delete everything")
@@ -342,7 +341,7 @@ private fun SimpleConfirmation(
         confirmButton = {
             Button(
                 onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = AccentRose)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
             ) {
                 Text(confirm)
             }

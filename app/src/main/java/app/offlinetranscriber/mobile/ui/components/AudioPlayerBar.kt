@@ -11,23 +11,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -45,16 +40,16 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.offlinetranscriber.mobile.domain.model.TranscriptSegment
+import app.offlinetranscriber.mobile.theme.OtPlaybackTimeStyle
+import app.offlinetranscriber.mobile.ui.accessibility.accessibleAction
+import app.offlinetranscriber.mobile.ui.design.AppShapes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -181,118 +176,136 @@ fun AudioPlayerBar(
 ) {
     var speedMenuExpanded by remember { mutableStateOf(false) }
 
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
         modifier = modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-            // Slider & Time
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+        Column(modifier = Modifier.fillMaxWidth()) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
-                Text(
-                    text = TranscriptSegment.formatTime(state.currentPositionMs.toLong()),
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Medium,
+                // Slider & Time with Tabular Typography
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = TranscriptSegment.formatTime(state.currentPositionMs.toLong()),
+                        style = OtPlaybackTimeStyle,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                )
 
-                Slider(
-                    value = state.currentPositionMs.toFloat().coerceIn(0f, state.durationMs.toFloat().coerceAtLeast(1f)),
-                    onValueChange = { state.seekTo(it.toLong()) },
-                    valueRange = 0f..state.durationMs.toFloat().coerceAtLeast(1f),
-                    colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.primary,
-                        activeTrackColor = MaterialTheme.colorScheme.primary
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp)
-                )
+                    Slider(
+                        value = state.currentPositionMs.toFloat()
+                            .coerceIn(0f, state.durationMs.toFloat().coerceAtLeast(1f)),
+                        onValueChange = { state.seekTo(it.toLong()) },
+                        valueRange = 0f..state.durationMs.toFloat().coerceAtLeast(1f),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 8.dp)
+                    )
 
-                Text(
-                    text = TranscriptSegment.formatTime(state.durationMs.toLong()),
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Medium,
+                    Text(
+                        text = TranscriptSegment.formatTime(state.durationMs.toLong()),
+                        style = OtPlaybackTimeStyle,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                )
-            }
+                }
 
-            // Controls
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Playback speed dropdown
-                Box {
-                    TextButton(
-                        onClick = { speedMenuExpanded = true },
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = "${state.playbackSpeed}x",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                        )
+                // Transport Controls
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Playback speed dropdown
+                    Box {
+                        TextButton(
+                            onClick = { speedMenuExpanded = true },
+                            shape = AppShapes.Control
+                        ) {
+                            Text(
+                                text = "${state.playbackSpeed}x",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = speedMenuExpanded,
+                            onDismissRequest = { speedMenuExpanded = false }
+                        ) {
+                            listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
+                                DropdownMenuItem(
+                                    text = { Text("${speed}x") },
+                                    onClick = {
+                                        state.setSpeed(speed)
+                                        speedMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
                     }
-                    DropdownMenu(
-                        expanded = speedMenuExpanded,
-                        onDismissRequest = { speedMenuExpanded = false }
+
+                    // Center playback controls
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
-                            DropdownMenuItem(
-                                text = { Text("${speed}x") },
-                                onClick = {
-                                    state.setSpeed(speed)
-                                    speedMenuExpanded = false
-                                }
+                        IconButton(
+                            onClick = { state.skip(-10000) },
+                            modifier = Modifier.accessibleAction("Rewind 10 seconds")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Replay10,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        FilledIconButton(
+                            onClick = { state.togglePlay() },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .accessibleAction(if (state.isPlaying) "Pause" else "Play"),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { state.skip(10000) },
+                            modifier = Modifier.accessibleAction("Forward 10 seconds")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FastForward,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
+
+                    // Placeholder for visual balance
+                    Spacer(modifier = Modifier.width(48.dp))
                 }
-
-                // Center playback controls
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    IconButton(onClick = { state.skip(-10000) }) {
-                        Icon(imageVector = Icons.Default.Replay10, contentDescription = "Rewind 10s")
-                    }
-
-                    FilledIconButton(
-                        onClick = { state.togglePlay() },
-                        modifier = Modifier.size(48.dp),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (state.isPlaying) "Pause" else "Play",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-
-                    IconButton(onClick = { state.skip(10000) }) {
-                        Icon(imageVector = Icons.Default.FastForward, contentDescription = "Forward 10s")
-                    }
-                }
-
-                // Placeholder for balance
-                Spacer(modifier = Modifier.width(48.dp))
             }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }

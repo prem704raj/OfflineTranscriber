@@ -44,8 +44,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import app.offlinetranscriber.mobile.domain.model.TranscriptionState
-import app.offlinetranscriber.mobile.theme.AccentEmerald
-import app.offlinetranscriber.mobile.theme.AccentRose
 
 @Composable
 fun TranscribingDialog(
@@ -194,7 +192,7 @@ fun TranscribingDialog(
                                                 Text(
                                                     text = "[${segment.startTimestampShort}]",
                                                     style = MaterialTheme.typography.labelSmall.copy(
-                                                        color = AccentEmerald,
+                                                        color = MaterialTheme.colorScheme.secondary,
                                                         fontWeight = FontWeight.Bold
                                                     ),
                                                     modifier = Modifier.padding(end = 6.dp)
@@ -217,7 +215,7 @@ fun TranscribingDialog(
                         Text(
                             text = "Transcription Failed",
                             style = MaterialTheme.typography.titleMedium.copy(
-                                color = AccentRose,
+                                color = MaterialTheme.colorScheme.error,
                                 fontWeight = FontWeight.Bold
                             )
                         )

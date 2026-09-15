@@ -4,10 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -21,39 +19,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.HourglassTop
-import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Queue
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SignalCellularOff
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -64,15 +45,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.offlinetranscriber.mobile.billing.Entitlement
@@ -81,14 +55,19 @@ import app.offlinetranscriber.mobile.data.model.MediaType
 import app.offlinetranscriber.mobile.data.model.TranscriptEntity
 import app.offlinetranscriber.mobile.domain.model.TranscriptSegment
 import app.offlinetranscriber.mobile.queue.TranscriptionJobStatus
-import app.offlinetranscriber.mobile.theme.AccentEmerald
-import app.offlinetranscriber.mobile.theme.AccentRose
-import app.offlinetranscriber.mobile.theme.PrimaryIndigo
-import app.offlinetranscriber.mobile.theme.PrimaryIndigoLight
 import app.offlinetranscriber.mobile.ui.accessibility.accessibleAction
-import app.offlinetranscriber.mobile.ui.accessibility.minimumTouchTarget
 import app.offlinetranscriber.mobile.ui.components.ProFeatureBadge
+import app.offlinetranscriber.mobile.ui.design.AppDimens
+import app.offlinetranscriber.mobile.ui.design.AppShapes
+import app.offlinetranscriber.mobile.ui.icons.OtIcons
 import app.offlinetranscriber.mobile.ui.layout.ReadingWidthContainer
+import app.offlinetranscriber.mobile.ui.system.OtArchiveRow
+import app.offlinetranscriber.mobile.ui.system.OtEmptyState
+import app.offlinetranscriber.mobile.ui.system.OtOperationStrip
+import app.offlinetranscriber.mobile.ui.system.OtSectionHeader
+import app.offlinetranscriber.mobile.ui.system.OtStatusKind
+import app.offlinetranscriber.mobile.ui.system.OtStatusLabel
+import app.offlinetranscriber.mobile.ui.system.OtWaveToTextMark
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -184,33 +163,14 @@ fun HomeScreen(
                                 letterSpacing = (-0.5).sp
                             )
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         if (isPro) {
                             ProFeatureBadge()
                         } else {
-                            Surface(
-                                color = AccentEmerald.copy(alpha = 0.15f),
-                                shape = CircleShape
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.SignalCellularOff,
-                                        contentDescription = null,
-                                        tint = AccentEmerald,
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = "OFFLINE",
-                                        color = AccentEmerald,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
+                            OtStatusLabel(
+                                text = "OFFLINE",
+                                kind = OtStatusKind.LOCAL
+                            )
                         }
                     }
                 },
@@ -253,7 +213,7 @@ fun HomeScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
         }
@@ -265,314 +225,112 @@ fun HomeScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                contentPadding = PaddingValues(
+                    horizontal = AppDimens.ScreenHorizontal,
+                    vertical = AppDimens.Space4
+                ),
+                verticalArrangement = Arrangement.spacedBy(AppDimens.Space5)
             ) {
-                // Active Processing Queue Banner (if jobs are running or queued)
+                // Active Processing Queue Strip (if jobs are running or queued)
                 if (activeJobs.isNotEmpty()) {
                     item {
-                        Card(
-                            shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(onClick = onOpenQueue)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Default.HourglassTop,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = if (processingJob != null) {
-                                            "Transcribing: ${processingJob.displayName}"
-                                        } else {
-                                            "Transcription queue active"
-                                        },
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        text = "View queue",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-
-                                if (processingJob != null) {
-                                    Spacer(Modifier.height(8.dp))
-                                    LinearProgressIndicator(
-                                        progress = { processingJob.progress / 100f },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(Modifier.height(4.dp))
-                                    Row {
-                                        Text(
-                                            "${processingJob.progress}% processed",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        if (queuedCount > 0) {
-                                            Spacer(Modifier.weight(1f))
-                                            Text(
-                                                "$queuedCount more waiting",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                        val titleText = if (processingJob != null) {
+                            "Transcribing: ${processingJob.displayName}"
+                        } else {
+                            "Transcription queue active"
                         }
+                        val secondaryText = if (queuedCount > 0) {
+                            "$queuedCount more waiting in queue"
+                        } else null
+
+                        OtOperationStrip(
+                            title = titleText,
+                            progress = processingJob?.progress,
+                            secondary = secondaryText,
+                            onClick = onOpenQueue
+                        )
                     }
                 }
 
-                // Model badge card
+                // Model status row
                 item {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onOpenModels)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Layers,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Model: ${selectedModelSpec?.label ?: "Base (Balanced)"}",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                                )
-                                Text(
-                                    text = "Tap to switch or manage Whisper models",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
+                    ModelStatusRow(
+                        label = selectedModelSpec?.label ?: "Base (Balanced)",
+                        onClick = onOpenModels
+                    )
                 }
 
-                // Primary Action Card: 3 Main Actions (Import Audio, Import Video, Quick Test)
+                // Primary Action Area: Capture Deck
                 item {
-                    Card(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clearAndSetSemantics { }
-                                    .background(
-                                        Brush.linearGradient(
-                                            listOf(PrimaryIndigo, PrimaryIndigoLight)
-                                        ),
-                                        CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.GraphicEq,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Text(
-                                text = "Transcribe & Generate Subtitles",
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                modifier = Modifier.semantics { heading() }
+                    CaptureDeck(
+                        isPro = isPro,
+                        onRecord = onNavigateToRecord,
+                        onImportAudio = {
+                            audioPickerLauncher.launch(
+                                arrayOf("audio/*", "application/ogg")
                             )
-
-                            Text(
-                                text = "Transcribe audio or extract audio from videos and edit synchronized subtitles completely offline.",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Action 1: Record Audio (Microphone Foreground Service)
-                            Button(
-                                onClick = onNavigateToRecord,
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 48.dp)
-                                    .minimumTouchTarget(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                Icon(imageVector = Icons.Default.Mic, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Record Audio",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Action 2: Import Audio (Unlimited Free)
-                            FilledTonalButton(
-                                onClick = {
-                                    audioPickerLauncher.launch(
-                                        arrayOf("audio/*", "application/ogg")
-                                    )
-                                },
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 48.dp)
-                                    .minimumTouchTarget()
-                            ) {
-                                Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Import Audio File",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Action 3: Import Video (Pro Feature)
-                            OutlinedButton(
-                                onClick = {
-                                    if (isPro) {
-                                        videoPickerLauncher.launch(arrayOf("video/*"))
-                                    } else {
-                                        onOpenPaywall(ProFeature.VIDEO_TRANSCRIPTION)
-                                    }
-                                },
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 48.dp)
-                                    .minimumTouchTarget()
-                            ) {
-                                Icon(imageVector = Icons.Default.Movie, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Import Video (Subtitle Studio)",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    modifier = Modifier.weight(1f, fill = false)
-                                )
-                                if (!isPro) {
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    ProFeatureBadge()
-                                }
+                        },
+                        onImportVideo = {
+                            if (isPro) {
+                                videoPickerLauncher.launch(arrayOf("video/*"))
+                            } else {
+                                onOpenPaywall(ProFeature.VIDEO_TRANSCRIPTION)
                             }
                         }
-                    }
+                    )
                 }
 
                 // Recent Transcripts Header
                 item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Recent Transcripts",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            modifier = Modifier.semantics { heading() }
-                        )
-                        Text(
-                            text = "${transcripts.size} items",
-                            style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        )
-                    }
+                    OtSectionHeader(
+                        title = "Recent Transcripts",
+                        trailing = {
+                            Text(
+                                text = "${transcripts.size} items",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    )
                 }
 
                 // Transcripts List or Empty State
                 if (transcripts.isEmpty()) {
                     item {
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Audiotrack,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "No transcripts yet",
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
-                                )
-                                Text(
-                                    text = "Tap Import Audio or Import Video above to create your first offline transcript or subtitles.",
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                            }
-                        }
+                        OtEmptyState(
+                            title = "No transcripts yet",
+                            body = "Record audio or import an audio/video file to create your first offline transcript or subtitles.",
+                            modifier = Modifier.padding(vertical = AppDimens.Space6)
+                        )
                     }
                 } else {
                     items(transcripts, key = { it.id }) { transcript ->
-                        TranscriptRowCard(
-                            transcript = transcript,
+                        val isVideo = transcript.mediaType == MediaType.VIDEO
+                        val icon = if (isVideo) OtIcons.VideoImport else OtIcons.Transcript
+                        val dateFormatted = SimpleDateFormat("MMM dd", Locale.getDefault())
+                            .format(Date(transcript.createdAt))
+                        val durationFormatted = TranscriptSegment.formatTime(transcript.audioDurationMs)
+
+                        OtArchiveRow(
+                            icon = icon,
+                            title = transcript.title,
+                            snippet = transcript.fullText.ifBlank { null },
+                            primaryMeta = durationFormatted,
+                            secondaryMeta = if (isVideo) "VIDEO • $dateFormatted" else dateFormatted,
                             onClick = { onTranscriptClick(transcript) },
-                            onDelete = { viewModel.deleteTranscript(transcript.id) }
+                            trailing = {
+                                IconButton(
+                                    onClick = { viewModel.deleteTranscript(transcript.id) },
+                                    modifier = Modifier.accessibleAction("Delete transcript ${transcript.title}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                         )
                     }
                 }
@@ -582,135 +340,156 @@ fun HomeScreen(
 }
 
 @Composable
-fun TranscriptRowCard(
-    transcript: TranscriptEntity,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
+private fun CaptureDeck(
+    isPro: Boolean,
+    onRecord: () -> Unit,
+    onImportAudio: () -> Unit,
+    onImportVideo: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val isVideo = transcript.mediaType == MediaType.VIDEO
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = AppDimens.Space2)
+    ) {
+        Text(
+            text = "Transcribe & Generate Subtitles",
+            style = MaterialTheme.typography.headlineLarge,
+            color = MaterialTheme.colorScheme.onBackground
+        )
 
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-        ),
+        Spacer(Modifier.height(AppDimens.Space2))
+
+        Text(
+            text = "Transcribe audio or extract audio from videos and edit synchronized subtitles completely offline.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(Modifier.height(AppDimens.Space5))
+
+        OtWaveToTextMark(
+            modifier = Modifier.align(Alignment.Start)
+        )
+
+        Spacer(Modifier.height(AppDimens.Space4))
+
+        Button(
+            onClick = onRecord,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = AppDimens.PrimaryTouchTarget),
+            shape = AppShapes.Button
+        ) {
+            Icon(
+                imageVector = OtIcons.RecordWave,
+                contentDescription = null
+            )
+
+            Spacer(Modifier.width(10.dp))
+
+            Text(
+                text = "Record Audio",
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+
+        Spacer(Modifier.height(AppDimens.Space2))
+
+        OutlinedButton(
+            onClick = onImportAudio,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp),
+            shape = AppShapes.Button
+        ) {
+            Icon(
+                imageVector = OtIcons.AudioImport,
+                contentDescription = null
+            )
+
+            Spacer(Modifier.width(10.dp))
+
+            Text(
+                text = "Import Audio File",
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+
+        Spacer(Modifier.height(AppDimens.Space2))
+
+        OutlinedButton(
+            onClick = onImportVideo,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp),
+            shape = AppShapes.Button
+        ) {
+            Icon(
+                imageVector = OtIcons.VideoImport,
+                contentDescription = null
+            )
+
+            Spacer(Modifier.width(10.dp))
+
+            Text(
+                text = "Import Video (Subtitle Studio)",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+
+            if (!isPro) {
+                Spacer(Modifier.width(8.dp))
+                ProFeatureBadge()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModelStatusRow(
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable { onClick() }
+            .clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(vertical = AppDimens.Space3),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(
-                        if (isVideo) MaterialTheme.colorScheme.secondaryContainer
-                        else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
+            Icon(
+                imageVector = OtIcons.Transcript,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(21.dp)
+            )
+
+            Spacer(Modifier.width(AppDimens.Space3))
+
+            Column(
+                modifier = Modifier.weight(1f)
             ) {
-                Icon(
-                    imageVector = if (isVideo) Icons.Default.Movie else Icons.Default.Audiotrack,
-                    contentDescription = null,
-                    tint = if (isVideo) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp)
+                Text(
+                    text = "Model: $label",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-            }
-
-            Spacer(modifier = Modifier.width(14.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = transcript.title,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    if (isVideo) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                text = "VIDEO",
-                                color = MaterialTheme.colorScheme.secondary,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(3.dp))
 
                 Text(
-                    text = transcript.fullText,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccessTime,
-                                contentDescription = null,
-                                modifier = Modifier.size(12.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = TranscriptSegment.formatTime(transcript.audioDurationMs),
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    }
-
-                    val dateFormatted = SimpleDateFormat("MMM dd", Locale.getDefault()).format(Date(transcript.createdAt))
-                    Text(
-                        text = dateFormatted,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-                }
-            }
-
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier.accessibleAction("Delete transcript ${transcript.title}")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = null,
-                    tint = AccentRose.copy(alpha = 0.7f),
-                    modifier = Modifier.size(18.dp)
+                    text = "Tap to switch or manage Whisper models",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
     }
 }

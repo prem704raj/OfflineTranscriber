@@ -1,5 +1,6 @@
 package app.offlinetranscriber.mobile.ui.ask
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -11,14 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -30,6 +25,9 @@ import androidx.compose.ui.unit.dp
 import app.offlinetranscriber.mobile.ask.model.AskEngine
 import app.offlinetranscriber.mobile.ask.model.AskRole
 import app.offlinetranscriber.mobile.data.model.AskCitationRow
+import app.offlinetranscriber.mobile.ui.design.AppShapes
+import app.offlinetranscriber.mobile.ui.system.OtStatusKind
+import app.offlinetranscriber.mobile.ui.system.OtStatusLabel
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -45,7 +43,7 @@ fun AskMessageCard(
         ) {
             Surface(
                 color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp),
+                shape = AppShapes.Button,
                 modifier = Modifier.padding(start = 48.dp)
             ) {
                 Row(
@@ -68,12 +66,16 @@ fun AskMessageCard(
             }
         }
     } else {
-        Card(
-            modifier = modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp, 18.dp, 18.dp, 4.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            )
+        Surface(
+            modifier = modifier
+                .fillMaxWidth()
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    shape = AppShapes.Button
+                ),
+            shape = AppShapes.Button,
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
@@ -87,54 +89,21 @@ fun AskMessageCard(
                 ) {
                     Text(
                         text = "Answer",
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.primary
                     )
 
                     val engine = message.engine
                     if (engine != null) {
-                        Surface(
-                            color = if (engine == AskEngine.GEMINI_NANO) {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                            } else {
-                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
-                            },
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (engine == AskEngine.GEMINI_NANO) {
-                                        Icons.Default.AutoAwesome
-                                    } else {
-                                        Icons.Default.Bolt
-                                    },
-                                    contentDescription = null,
-                                    tint = if (engine == AskEngine.GEMINI_NANO) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.secondary
-                                    },
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    text = if (engine == AskEngine.GEMINI_NANO) {
-                                        "On-device AI"
-                                    } else {
-                                        "Classic offline"
-                                    },
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = if (engine == AskEngine.GEMINI_NANO) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.secondary
-                                    }
-                                )
-                            }
+                        val engineLabel = if (engine == AskEngine.GEMINI_NANO) {
+                            "On-device AI"
+                        } else {
+                            "Classic offline"
                         }
+                        OtStatusLabel(
+                            text = engineLabel,
+                            kind = OtStatusKind.LOCAL
+                        )
                     }
                 }
 

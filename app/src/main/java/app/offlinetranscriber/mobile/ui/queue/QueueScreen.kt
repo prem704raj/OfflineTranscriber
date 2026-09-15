@@ -13,36 +13,40 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.offlinetranscriber.mobile.queue.TranscriptionJobStage
 import app.offlinetranscriber.mobile.queue.TranscriptionJobStatus
+import app.offlinetranscriber.mobile.ui.accessibility.accessibleAction
+import app.offlinetranscriber.mobile.ui.design.AppDimens
+import app.offlinetranscriber.mobile.ui.design.AppShapes
+import app.offlinetranscriber.mobile.ui.layout.ReadingWidthContainer
+import app.offlinetranscriber.mobile.ui.system.OtEmptyState
+import app.offlinetranscriber.mobile.ui.system.OtOperationStrip
+import app.offlinetranscriber.mobile.ui.system.OtStatusKind
+import app.offlinetranscriber.mobile.ui.system.OtStatusLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,13 +61,19 @@ fun QueueScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Transcription queue")
+                    Text(
+                        "Transcription queue",
+                        style = MaterialTheme.typography.titleLarge
+                    )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.accessibleAction("Back")
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            "Back"
+                            contentDescription = "Back"
                         )
                     }
                 },
@@ -73,193 +83,159 @@ fun QueueScreen(
                             it.status == TranscriptionJobStatus.CANCELLED.name
                     }
                     if (hasFinished) {
-                        IconButton(onClick = viewModel::clearFinished) {
+                        IconButton(
+                            onClick = viewModel::clearFinished,
+                            modifier = Modifier.accessibleAction("Clear finished jobs")
+                        ) {
                             Icon(Icons.Default.DeleteSweep, "Clear finished")
                         }
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { padding ->
-        if (jobs.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(28.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    Icons.Default.HourglassTop,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        ReadingWidthContainer(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            if (jobs.isEmpty()) {
+                OtEmptyState(
+                    title = "Queue is empty",
+                    body = "Imported audio or video files will appear here while they are being transcribed in the background.",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(AppDimens.Space8)
                 )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "Queue is empty",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Imported audio or video files will appear here while they are being transcribed in the background.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(18.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(
-                    jobs,
-                    key = { it.id }
-                ) { job ->
-                    val status = runCatching {
-                        TranscriptionJobStatus.valueOf(job.status)
-                    }.getOrDefault(TranscriptionJobStatus.FAILED)
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        horizontal = AppDimens.ScreenHorizontal,
+                        vertical = AppDimens.Space4
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(AppDimens.Space3)
+                ) {
+                    items(
+                        jobs,
+                        key = { it.id }
+                    ) { job ->
+                        val status = runCatching {
+                            TranscriptionJobStatus.valueOf(job.status)
+                        }.getOrDefault(TranscriptionJobStatus.FAILED)
 
-                    val stage = runCatching {
-                        TranscriptionJobStage.valueOf(job.stage)
-                    }.getOrDefault(TranscriptionJobStage.TRANSCRIBING)
+                        val stage = runCatching {
+                            TranscriptionJobStage.valueOf(job.stage)
+                        }.getOrDefault(TranscriptionJobStage.TRANSCRIBING)
 
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(
-                                enabled = status == TranscriptionJobStatus.COMPLETED && job.resultTranscriptId != null
-                            ) {
-                                job.resultTranscriptId?.let { transcriptId ->
-                                    onOpenTranscript(transcriptId, job.sourceType)
-                                }
-                            },
-                        colors = CardDefaults.cardColors(
-                            containerColor = when (status) {
-                                TranscriptionJobStatus.PROCESSING ->
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                                TranscriptionJobStatus.FAILED ->
-                                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
-                                else ->
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                            }
-                        ),
-                        shape = RoundedCornerShape(18.dp)
-                    ) {
+                        val isClickable = status == TranscriptionJobStatus.COMPLETED && job.resultTranscriptId != null
+
                         Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = job.displayName,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    text = job.sourceType,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            Spacer(Modifier.height(6.dp))
-
-                            when (status) {
-                                TranscriptionJobStatus.PROCESSING -> {
-                                    LinearProgressIndicator(
-                                        progress = { job.progress / 100f },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(Modifier.height(4.dp))
-                                    val processingLabel = if (stage == TranscriptionJobStage.PREPARING) {
-                                        "Preparing video • ${job.progress}%"
-                                    } else {
-                                        "Transcribing • ${job.progress}%"
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    enabled = isClickable,
+                                    role = Role.Button
+                                ) {
+                                    job.resultTranscriptId?.let { transcriptId ->
+                                        onOpenTranscript(transcriptId, job.sourceType)
                                     }
-                                    Text(
-                                        processingLabel,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
                                 }
-
-                                TranscriptionJobStatus.QUEUED -> {
-                                    val queuedLabel = if (stage == TranscriptionJobStage.PREPARING) {
-                                        "Video waiting to prepare"
-                                    } else {
-                                        "Waiting in queue"
-                                    }
+                                .padding(vertical = AppDimens.Space2)
+                        ) {
+                            if (status == TranscriptionJobStatus.PROCESSING) {
+                                val processingLabel = if (stage == TranscriptionJobStage.PREPARING) {
+                                    "Preparing video"
+                                } else {
+                                    "Transcribing"
+                                }
+                                OtOperationStrip(
+                                    title = job.displayName,
+                                    progress = job.progress,
+                                    secondary = "$processingLabel • ${job.sourceType}",
+                                    onClick = null
+                                )
+                            } else {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Text(
-                                        queuedLabel,
-                                        style = MaterialTheme.typography.bodySmall,
+                                        text = job.displayName,
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = job.sourceType,
+                                        style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
 
-                                TranscriptionJobStatus.COMPLETED -> {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            Icons.Default.CheckCircle,
-                                            null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(end = 4.dp)
-                                        )
-                                        Text(
-                                            "Completed • Tap to open",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary
+                                Spacer(Modifier.height(AppDimens.Space1))
+
+                                when (status) {
+                                    TranscriptionJobStatus.QUEUED -> {
+                                        val queuedLabel = if (stage == TranscriptionJobStage.PREPARING) {
+                                            "Video waiting to prepare"
+                                        } else {
+                                            "Waiting in queue"
+                                        }
+                                        OtStatusLabel(
+                                            text = queuedLabel,
+                                            kind = OtStatusKind.PROCESSING
                                         )
                                     }
-                                }
 
-                                TranscriptionJobStatus.FAILED -> {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            Icons.Default.ErrorOutline,
-                                            null,
-                                            tint = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.padding(end = 4.dp)
+                                    TranscriptionJobStatus.COMPLETED -> {
+                                        OtStatusLabel(
+                                            text = "Completed • Tap to open",
+                                            kind = OtStatusKind.LOCAL
                                         )
+                                    }
+
+                                    TranscriptionJobStatus.FAILED -> {
                                         Text(
-                                            job.errorMessage ?: "Transcription failed",
+                                            text = job.errorMessage ?: "Transcription failed",
                                             color = MaterialTheme.colorScheme.error,
                                             style = MaterialTheme.typography.bodySmall
                                         )
                                     }
-                                }
 
-                                TranscriptionJobStatus.CANCELLED -> {
-                                    Text(
-                                        "Cancelled",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    TranscriptionJobStatus.CANCELLED -> {
+                                        Text(
+                                            text = "Cancelled",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    else -> Unit
                                 }
                             }
-
-                            Spacer(Modifier.height(8.dp))
 
                             when (status) {
                                 TranscriptionJobStatus.QUEUED,
                                 TranscriptionJobStatus.PROCESSING -> {
+                                    Spacer(Modifier.height(AppDimens.Space2))
                                     OutlinedButton(
-                                        onClick = { viewModel.cancel(job.id) }
+                                        onClick = { viewModel.cancel(job.id) },
+                                        shape = AppShapes.Control
                                     ) {
                                         Text("Cancel")
                                     }
                                 }
 
                                 TranscriptionJobStatus.FAILED -> {
+                                    Spacer(Modifier.height(AppDimens.Space2))
                                     Button(
-                                        onClick = { viewModel.retry(job.id) }
+                                        onClick = { viewModel.retry(job.id) },
+                                        shape = AppShapes.Control
                                     ) {
-                                        Icon(Icons.Default.Refresh, null)
+                                        Icon(Icons.Default.Refresh, contentDescription = null)
                                         Spacer(Modifier.width(4.dp))
                                         Text("Retry")
                                     }
@@ -267,6 +243,9 @@ fun QueueScreen(
 
                                 else -> Unit
                             }
+
+                            Spacer(Modifier.height(AppDimens.Space2))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
                 }
