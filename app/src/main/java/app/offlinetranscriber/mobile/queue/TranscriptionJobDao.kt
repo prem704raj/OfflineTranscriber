@@ -129,6 +129,7 @@ interface TranscriptionJobDao {
         SET status = 'QUEUED',
             progress = 0,
             errorMessage = NULL,
+            resultTranscriptId = NULL,
             updatedAt = :updatedAt
         WHERE id = :id
         """

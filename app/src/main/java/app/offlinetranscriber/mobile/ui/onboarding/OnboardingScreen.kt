@@ -208,11 +208,16 @@ fun OnboardingScreen(
                             onFinish()
                         }
                     },
-                    enabled = page != 1 || modelState.rows.any { it.installed },
+                    enabled = true,
                     shape = AppShapes.Button,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(if (page < 2) "Continue" else "Start transcribing")
+                    val label = when {
+                        page == 1 && !modelState.rows.any { it.installed } -> "Set up later"
+                        page < 2 -> "Continue"
+                        else -> "Start transcribing"
+                    }
+                    Text(label)
                 }
             }
         }

@@ -39,6 +39,7 @@ class BackupRestoreForegroundService : Service() {
 
     private var activeJob: Job? = null
     private var activeOperationId: String? = null
+    private var activeOperationType: BackupOperationType = BackupOperationType.CREATE
 
     override fun onCreate() {
         super.onCreate()
@@ -89,6 +90,7 @@ class BackupRestoreForegroundService : Service() {
 
     private fun runCreateBackup(request: BackupCreateRequest, startId: Int) {
         activeOperationId = request.operationId
+        activeOperationType = BackupOperationType.CREATE
         val secret = app.backupSecretVault.take(request.operationId)
 
         activeJob = scope.launch {
@@ -157,6 +159,7 @@ class BackupRestoreForegroundService : Service() {
 
     private fun runInspectBackup(request: BackupInspectRequest, startId: Int) {
         activeOperationId = request.operationId
+        activeOperationType = BackupOperationType.INSPECT
         val secret = app.backupSecretVault.take(request.operationId)
 
         activeJob = scope.launch {
@@ -268,6 +271,7 @@ class BackupRestoreForegroundService : Service() {
 
     private fun runRestoreBackup(request: BackupRestoreRequest, startId: Int) {
         activeOperationId = request.operationId
+        activeOperationType = BackupOperationType.RESTORE
 
         activeJob = scope.launch {
             try {
@@ -370,6 +374,20 @@ class BackupRestoreForegroundService : Service() {
         activeOperationId = null
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelfResult(startId)
+    }
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        activeJob?.cancel()
+        activeOperationId?.let { opId ->
+            app.backupOperationStore.updateState(
+                opId,
+                activeOperationType,
+                BackupOperationStatus.CANCELLED,
+                0,
+                "Operation cancelled due to background service timeout"
+            )
+        }
+        stopForegroundIfLast(startId)
     }
 
     override fun onDestroy() {

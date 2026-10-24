@@ -64,7 +64,7 @@ fun PaywallScreen(
     viewModel: BillingViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    val activity = LocalContext.current as? Activity
+    val activity = androidx.activity.compose.LocalActivity.current
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {

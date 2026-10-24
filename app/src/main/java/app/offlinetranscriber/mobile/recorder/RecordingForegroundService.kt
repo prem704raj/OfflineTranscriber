@@ -71,7 +71,7 @@ class RecordingForegroundService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var tickerJob: Job? = null
 
-    private var recorder: MediaRecorder? = null
+    private var crashSafeRecorder: CrashSafeAudioRecorder? = null
     private var outputFile: File? = null
 
     private var startTimeMs = 0L
@@ -101,38 +101,60 @@ class RecordingForegroundService : Service() {
     private fun handleStart() {
         if (isRecording) return
 
+        // Promote to foreground service immediately before touching microphone hardware (Android 14+ requirement)
+        try {
+            val initialNotification = buildNotification(0L, isPaused = false)
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                initialNotification,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                } else {
+                    0
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to promote recording service to foreground", e)
+            handleError("Failed to start foreground recording service: ${e.message}")
+            return
+        }
+
         try {
             val dir = File(
                 getExternalFilesDir(Environment.DIRECTORY_MUSIC),
                 "recordings"
             ).apply { mkdirs() }
 
-            val file = File(dir, "recording_${System.currentTimeMillis()}.m4a")
+            val freeBytes = dir.freeSpace
+            if (freeBytes < 25L * 1024L * 1024L) {
+                handleError("Insufficient storage space to record audio.")
+                return
+            }
+
+            val file = File(dir, "recording_${System.currentTimeMillis()}.wav")
             outputFile = file
 
-            val mr = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                MediaRecorder(this)
-            } else {
-                @Suppress("DEPRECATION")
-                MediaRecorder()
+            val recorder = CrashSafeAudioRecorder().apply {
+                onErrorListener = { error ->
+                    serviceScope.launch(Dispatchers.Main) {
+                        handleError("Recording write failure: ${error.localizedMessage ?: "disk error"}")
+                    }
+                }
+            }
+            val startRes = recorder.start(file)
+            if (startRes.isFailure) {
+                handleError("Failed to initialize microphone: ${startRes.exceptionOrNull()?.message}")
+                return
             }
 
-            mr.apply {
-                setAudioSource(MediaRecorder.AudioSource.MIC)
-                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                setAudioSamplingRate(44100)
-                setAudioEncodingBitRate(128000)
-                setOutputFile(file.absolutePath)
-                prepare()
-                start()
-            }
-
-            recorder = mr
+            crashSafeRecorder = recorder
             isRecording = true
             isPaused = false
             startTimeMs = System.currentTimeMillis()
             accumulatedMs = 0L
+
+            RecordingDraftJournal.start(this, file.absolutePath, startTimeMs)
 
             RecordingSessionStore.set(
                 RecordingState(
@@ -141,18 +163,6 @@ class RecordingForegroundService : Service() {
                     amplitude = 0f,
                     filePath = file.absolutePath
                 )
-            )
-
-            val notification = buildNotification(0L, isPaused = false)
-            ServiceCompat.startForeground(
-                this,
-                NOTIFICATION_ID,
-                notification,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-                } else {
-                    0
-                }
             )
 
             startTicker()
@@ -164,40 +174,28 @@ class RecordingForegroundService : Service() {
 
     private fun handlePause() {
         if (!isRecording || isPaused) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            try {
-                recorder?.pause()
-                accumulatedMs += (System.currentTimeMillis() - startTimeMs)
-                isPaused = true
+        crashSafeRecorder?.pause()
+        accumulatedMs += (System.currentTimeMillis() - startTimeMs)
+        isPaused = true
 
-                RecordingSessionStore.update {
-                    it.copy(status = RecordingStatus.PAUSED, amplitude = 0f)
-                }
-
-                updateNotification(accumulatedMs, isPaused = true)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to pause recording", e)
-            }
+        RecordingSessionStore.update {
+            it.copy(status = RecordingStatus.PAUSED, amplitude = 0f)
         }
+
+        updateNotification(accumulatedMs, isPaused = true)
     }
 
     private fun handleResume() {
         if (!isRecording || !isPaused) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            try {
-                recorder?.resume()
-                startTimeMs = System.currentTimeMillis()
-                isPaused = false
+        crashSafeRecorder?.resume()
+        startTimeMs = System.currentTimeMillis()
+        isPaused = false
 
-                RecordingSessionStore.update {
-                    it.copy(status = RecordingStatus.RECORDING)
-                }
-
-                updateNotification(currentDuration(), isPaused = false)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to resume recording", e)
-            }
+        RecordingSessionStore.update {
+            it.copy(status = RecordingStatus.RECORDING)
         }
+
+        updateNotification(currentDuration(), isPaused = false)
     }
 
     private fun handleStop() {
@@ -209,21 +207,27 @@ class RecordingForegroundService : Service() {
         tickerJob?.cancel()
         val finalDuration = currentDuration()
 
-        runCatching {
-            recorder?.apply {
-                stop()
-                release()
-            }
-        }
-        recorder = null
+        val rec = crashSafeRecorder
+        crashSafeRecorder = null
+        val stopResult = rec?.stop() ?: Result.failure(IllegalStateException("No active recorder"))
         isRecording = false
         isPaused = false
 
+        if (stopResult.isFailure) {
+            val err = stopResult.exceptionOrNull()?.message ?: "Failed to stop recording"
+            Log.e(TAG, "Recording stop failed: $err")
+            handleError("Recording stop failed: $err")
+            return
+        }
+
+        val recordedDuration = stopResult.getOrDefault(finalDuration)
         val finalPath = outputFile?.absolutePath
+        RecordingDraftJournal.complete(this, recordedDuration)
+
         RecordingSessionStore.set(
             RecordingState(
                 status = RecordingStatus.COMPLETED,
-                durationMs = finalDuration,
+                durationMs = recordedDuration,
                 amplitude = 0f,
                 filePath = finalPath
             )
@@ -235,16 +239,14 @@ class RecordingForegroundService : Service() {
 
     private fun handleDiscard() {
         tickerJob?.cancel()
-        runCatching {
-            recorder?.apply {
-                stop()
-                release()
-            }
-        }
-        recorder = null
+        val rec = crashSafeRecorder
+        crashSafeRecorder = null
+        runCatching { rec?.stop() }
+        runCatching { rec?.release() }
         isRecording = false
         isPaused = false
 
+        RecordingDraftJournal.discard(this)
         outputFile?.delete()
         outputFile = null
 
@@ -255,20 +257,32 @@ class RecordingForegroundService : Service() {
 
     private fun handleError(message: String) {
         tickerJob?.cancel()
-        runCatching {
-            recorder?.release()
-        }
-        recorder = null
+        val rec = crashSafeRecorder
+        crashSafeRecorder = null
+        runCatching { rec?.stop() }
+        runCatching { rec?.release() }
         isRecording = false
         isPaused = false
 
-        outputFile?.delete()
+        val dur = currentDuration()
+        val finalFile = outputFile?.takeIf { it.exists() && it.length() > WavAudioWriter.HEADER_SIZE }
+        val finalPath = finalFile?.absolutePath
+
+        if (finalFile != null) {
+            WavAudioWriter.repairWavHeader(finalFile)
+            RecordingDraftJournal.markInterrupted(this, finalPath, dur, message)
+        } else {
+            outputFile?.delete()
+            RecordingDraftJournal.clear(this)
+        }
         outputFile = null
 
         RecordingSessionStore.set(
             RecordingState(
                 status = RecordingStatus.ERROR,
-                errorMessage = message
+                errorMessage = message,
+                durationMs = dur,
+                filePath = finalPath
             )
         )
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -287,23 +301,47 @@ class RecordingForegroundService : Service() {
         tickerJob?.cancel()
         tickerJob = serviceScope.launch {
             var lastNotificationSecond = -1L
+            var lastHeaderSyncSecond = -1L
             while (isActive && isRecording) {
                 val dur = currentDuration()
                 val amp = if (!isPaused) {
-                    val maxAmp = runCatching { recorder?.maxAmplitude ?: 0 }.getOrDefault(0)
+                    val maxAmp = runCatching { crashSafeRecorder?.maxAmplitude ?: 0f }.getOrDefault(0f)
                     (maxAmp / 32767f).coerceIn(0f, 1f)
                 } else {
                     0f
                 }
 
+                // Fast 100ms in-memory UI state emission
                 RecordingSessionStore.update {
                     it.copy(durationMs = dur, amplitude = amp)
                 }
 
                 val currentSec = dur / 1000L
+
+                // Disk header sync every 3 seconds, offloaded to Dispatchers.IO
+                if (currentSec - lastHeaderSyncSecond >= 3L) {
+                    lastHeaderSyncSecond = currentSec
+                    withContext(Dispatchers.IO) {
+                        crashSafeRecorder?.flushAndSyncHeader()
+                    }
+                }
+
                 if (currentSec != lastNotificationSecond) {
                     lastNotificationSecond = currentSec
                     updateNotification(dur, isPaused)
+
+                    withContext(Dispatchers.IO) {
+                        RecordingDraftJournal.updateHeartbeat(this@RecordingForegroundService, dur, isPaused)
+
+                        // Low-storage watchdog (halt recording cleanly if free disk drops below 15 MB)
+                        val freeSpace = outputFile?.parentFile?.freeSpace ?: Long.MAX_VALUE
+                        if (freeSpace < 15L * 1024L * 1024L) {
+                            Log.w(TAG, "Storage critically low ($freeSpace bytes left), halting recording safely")
+                            withContext(Dispatchers.Main) {
+                                handleError("Recording stopped: Storage space exhausted.")
+                            }
+                        }
+                    }
                 }
 
                 delay(100)
@@ -409,12 +447,19 @@ class RecordingForegroundService : Service() {
         }
     }
 
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        Log.w(TAG, "Recording service received timeout signal. Finalizing recording draft.")
+        handleStop()
+        stopSelf(startId)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        tickerJob?.cancel()
         serviceScope.cancel()
-        runCatching {
-            recorder?.release()
-        }
-        recorder = null
+        val rec = crashSafeRecorder
+        crashSafeRecorder = null
+        runCatching { rec?.stop() }
+        runCatching { rec?.release() }
     }
 }

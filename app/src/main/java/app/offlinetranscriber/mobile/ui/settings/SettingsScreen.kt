@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Memory
@@ -37,6 +38,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -55,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
@@ -102,6 +105,12 @@ class SettingsViewModel(
         }
     }
 
+    fun setCustomVocabulary(terms: String) {
+        viewModelScope.launch {
+            app.settingsRepository.setCustomVocabulary(terms)
+        }
+    }
+
     fun restorePurchases() {
         viewModelScope.launch {
             app.billingRepository.restorePurchase()
@@ -127,11 +136,14 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
     val prefs by viewModel.settings.collectAsState()
     val billingState by viewModel.billingState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     var languageDialog by remember { mutableStateOf(false) }
+    var vocabularyDialog by remember { mutableStateOf(false) }
+    var tempVocabulary by remember { mutableStateOf("") }
 
     LaunchedEffect(billingState.message) {
         billingState.message?.let {
@@ -274,6 +286,20 @@ fun SettingsScreen(
                 )
 
                 SettingRow(
+                    icon = Icons.Default.Edit,
+                    title = "Custom vocabulary & jargon",
+                    subtitle = if (prefs.customVocabulary.isBlank()) {
+                        "Add specialized terms, names, or Hinglish acronyms"
+                    } else {
+                        prefs.customVocabulary
+                    },
+                    onClick = {
+                        tempVocabulary = prefs.customVocabulary
+                        vocabularyDialog = true
+                    }
+                )
+
+                SettingRow(
                     icon = Icons.Default.Queue,
                     title = "Transcription queue",
                     subtitle = "Manage queued and completed background jobs",
@@ -308,7 +334,7 @@ fun SettingsScreen(
                     onClick = {
                         val intent = Intent(
                             Intent.ACTION_VIEW,
-                            Uri.parse(context.getString(R.string.privacy_policy_url))
+                            Uri.parse(privacyPolicyUrl)
                         )
                         context.startActivity(intent)
                     }
@@ -350,7 +376,9 @@ fun SettingsScreen(
             onDismissRequest = { languageDialog = false },
             title = { Text("Transcription language") },
             text = {
-                Column {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
                     LanguageCatalog.all.forEach { language ->
                         Row(
                             modifier = Modifier
@@ -383,6 +411,50 @@ fun SettingsScreen(
                     modifier = Modifier.minimumTouchTarget()
                 ) {
                     Text("Close")
+                }
+            }
+        )
+    }
+
+    if (vocabularyDialog) {
+        AlertDialog(
+            onDismissRequest = { vocabularyDialog = false },
+            title = { Text("Custom Vocabulary & Acronyms") },
+            text = {
+                Column {
+                    Text(
+                        "Add specialized terms, acronyms, or proper nouns (e.g. AIIMS, Ramesh, GST, UPI, Aadhaar, Kotlin) separated by commas. Whisper uses these to guide decoding.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = tempVocabulary,
+                        onValueChange = { tempVocabulary = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("e.g. UPI, Aadhaar, AIIMS, Ramesh") },
+                        minLines = 3,
+                        maxLines = 5
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.setCustomVocabulary(tempVocabulary.trim())
+                        vocabularyDialog = false
+                    },
+                    modifier = Modifier.minimumTouchTarget()
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { vocabularyDialog = false },
+                    modifier = Modifier.minimumTouchTarget()
+                ) {
+                    Text("Cancel")
                 }
             }
         )

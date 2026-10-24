@@ -1,0 +1,68 @@
+[
+  {
+    "package": "com.aisense.otter",
+    "title": "Otter.ai: Transcribe Voice Notes",
+    "developer": "UNVERIFIED",
+    "rating": "4.8",
+    "rating_count": "46.7K",
+    "installs": "5M+",
+    "price": "Free",
+    "has_iap": true,
+    "updated": "UNVERIFIED"
+  },
+  {
+    "package": "com.langogo.transcribe",
+    "title": "Notta - Transcribe Audio to Text",
+    "developer": "NOTTA PTE. LTD.",
+    "rating": "4.1",
+    "rating_count": "21.5K",
+    "installs": "1M+",
+    "price": "Free",
+    "has_iap": true,
+    "updated": "UNVERIFIED"
+  },
+  {
+    "package": "com.transkriptor.app",
+    "title": "Transkriptor: Speech to Text",
+    "developer": "Tor.App",
+    "rating": "4.1",
+    "rating_count": "52.2K",
+    "installs": "5M+",
+    "price": "Free",
+    "has_iap": true,
+    "updated": "UNVERIFIED"
+  },
+  {
+    "package": "com.coffeebeanventures.easyvoicerecorder",
+    "title": "Easy Voice Recorder",
+    "developer": "Digipom",
+    "rating": "4.7",
+    "rating_count": "624K",
+    "installs": "50M+",
+    "price": "Free",
+    "has_iap": true,
+    "updated": "UNVERIFIED"
+  },
+  {
+    "package": "com.google.audio.hearing.visualization.accessibility.scribe",
+    "title": "Live Transcribe & Notification",
+    "developer": "UNVERIFIED",
+    "rating": "3.8",
+    "rating_count": "274K",
+    "installs": "1B+",
+    "price": "Free",
+    "has_iap": false,
+    "updated": "UNVERIFIED"
+  },
+  {
+    "package": "ru.vsms",
+    "title": "Write by Voice: Speech to Text",
+    "developer": "UXAPPS LTD",
+    "rating": "4.5",
+    "rating_count": "191K",
+    "installs": "10M+",
+    "price": "Free",
+    "has_iap": true,
+    "updated": "UNVERIFIED"
+  }
+]

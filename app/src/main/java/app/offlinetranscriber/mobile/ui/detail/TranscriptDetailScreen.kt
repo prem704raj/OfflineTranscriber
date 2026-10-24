@@ -38,9 +38,11 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -76,6 +78,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.offlinetranscriber.mobile.TranscriberApplication
 import app.offlinetranscriber.mobile.data.model.MediaType
+import app.offlinetranscriber.mobile.data.model.SpeakerClusterEntity
 import app.offlinetranscriber.mobile.data.model.TranscriptEntity
 import app.offlinetranscriber.mobile.domain.model.TranscriptSegment
 import app.offlinetranscriber.mobile.media.MediaAvailability
@@ -91,6 +94,7 @@ import app.offlinetranscriber.mobile.ui.design.AppDimens
 import app.offlinetranscriber.mobile.ui.design.AppShapes
 import app.offlinetranscriber.mobile.ui.icons.OtIcons
 import app.offlinetranscriber.mobile.ui.layout.ReadingWidthContainer
+import app.offlinetranscriber.mobile.ui.speaker.RenameSpeakerDialog
 import app.offlinetranscriber.mobile.ui.speaker.getSpeakerColor
 import app.offlinetranscriber.mobile.ui.system.OtTranscriptLine
 import kotlinx.coroutines.launch
@@ -150,6 +154,9 @@ fun TranscriptDetailScreen(
 
     var showRenameDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSearchReplaceDialog by remember { mutableStateOf(false) }
+    var showDeleteAudioDialog by remember { mutableStateOf(false) }
+    var speakerToRename by remember { mutableStateOf<SpeakerClusterEntity?>(null) }
     var viewMode by remember { mutableStateOf(TranscriptViewMode.SEGMENTS) }
     var searchQuery by remember { mutableStateOf("") }
 
@@ -352,6 +359,30 @@ fun TranscriptDetailScreen(
                             )
 
                             DropdownMenuItem(
+                                text = { Text("Find & Replace") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Search, contentDescription = null)
+                                },
+                                onClick = {
+                                    showMoreMenu = false
+                                    showSearchReplaceDialog = true
+                                }
+                            )
+
+                            if (!transcript.audioUriString.isNullOrBlank()) {
+                                DropdownMenuItem(
+                                    text = { Text("Free Space (Delete Audio)") },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Delete, contentDescription = null)
+                                    },
+                                    onClick = {
+                                        showMoreMenu = false
+                                        showDeleteAudioDialog = true
+                                    }
+                                )
+                            }
+
+                            DropdownMenuItem(
                                 text = { Text("Rename") },
                                 leadingIcon = {
                                     Icon(Icons.Default.Edit, contentDescription = null)
@@ -545,6 +576,19 @@ fun TranscriptDetailScreen(
                                             .background(color)
                                     )
                                 },
+                                trailingIcon = if (selectedSpeakerFilterId == cluster.id) {
+                                    {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = "Rename ${cluster.customName}",
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .clickable {
+                                                    speakerToRename = cluster
+                                                }
+                                        )
+                                    }
+                                } else null,
                                 label = { Text(cluster.customName) }
                             )
                         }
@@ -732,6 +776,157 @@ fun TranscriptDetailScreen(
                     modifier = Modifier.minimumTouchTarget()
                 ) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Find and Replace Dialog
+    if (showSearchReplaceDialog) {
+        var findText by remember { mutableStateOf("") }
+        var replaceText by remember { mutableStateOf("") }
+        var matchCase by remember { mutableStateOf(false) }
+
+        val liveMatches = remember(findText, matchCase, segments) {
+            if (findText.isEmpty()) 0
+            else {
+                segments.sumOf { seg ->
+                    if (matchCase) {
+                        seg.text.split(findText).size - 1
+                    } else {
+                        Regex(Regex.escape(findText), RegexOption.IGNORE_CASE).findAll(seg.text).count()
+                    }
+                }
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showSearchReplaceDialog = false },
+            title = { Text("Find and Replace", modifier = Modifier.semantics { heading() }) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = findText,
+                        onValueChange = { findText = it },
+                        label = { Text("Find") },
+                        singleLine = true,
+                        shape = AppShapes.Control,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = replaceText,
+                        onValueChange = { replaceText = it },
+                        label = { Text("Replace with") },
+                        singleLine = true,
+                        shape = AppShapes.Control,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { matchCase = !matchCase }
+                    ) {
+                        Checkbox(
+                            checked = matchCase,
+                            onCheckedChange = { matchCase = it }
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Match case", style = MaterialTheme.typography.bodyMedium)
+                    }
+
+                    if (findText.isNotEmpty()) {
+                        Text(
+                            text = when (liveMatches) {
+                                0 -> "No occurrences found"
+                                1 -> "1 occurrence found"
+                                else -> "$liveMatches occurrences found"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (liveMatches > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (findText.isNotEmpty()) {
+                            coroutineScope.launch {
+                                runCatching {
+                                    app.transcriptRepository.searchAndReplace(
+                                        transcriptId = transcript.id,
+                                        findText = findText,
+                                        replaceText = replaceText,
+                                        matchCase = matchCase
+                                    )
+                                }.onSuccess { res ->
+                                    val count = res.getOrDefault(0)
+                                    Toast.makeText(context, "Replaced $count occurrences", Toast.LENGTH_SHORT).show()
+                                    showSearchReplaceDialog = false
+                                }.onFailure { err ->
+                                    Toast.makeText(context, "Search and replace failed: ${err.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    },
+                    enabled = findText.isNotEmpty() && liveMatches > 0,
+                    modifier = Modifier.minimumTouchTarget()
+                ) {
+                    Text("Replace All")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showSearchReplaceDialog = false },
+                    modifier = Modifier.minimumTouchTarget()
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Delete Audio (Reclaim Space) Dialog
+    if (showDeleteAudioDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAudioDialog = false },
+            title = { Text("Delete Audio File", modifier = Modifier.semantics { heading() }) },
+            text = {
+                Text("Delete the audio recording to free up storage space? All transcript text, timestamps, notes, and search will remain fully accessible.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            val result = app.transcriptRepository.deleteAudioRetainingTranscript(transcript.id)
+                            val message = result.getOrNull()?.message ?: "Audio reference removed. Transcript preserved."
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                            showDeleteAudioDialog = false
+                        }
+                    },
+                    modifier = Modifier.minimumTouchTarget()
+                ) {
+                    Text("Delete Audio", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteAudioDialog = false },
+                    modifier = Modifier.minimumTouchTarget()
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    speakerToRename?.let { cluster ->
+        RenameSpeakerDialog(
+            cluster = cluster,
+            onDismiss = { speakerToRename = null },
+            onConfirm = { clusterId, newName ->
+                coroutineScope.launch {
+                    speakerRepository.renameCluster(clusterId, newName)
+                    speakerToRename = null
                 }
             }
         )

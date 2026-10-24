@@ -72,10 +72,22 @@ class ModelManager(
         return computed.equals(spec.sha256, ignoreCase = true)
     }
 
+    fun isModelReady(spec: WhisperModelSpec): Boolean =
+        isInstalled(spec) && verifySha(spec)
+
+    fun invalidateVerification(spec: WhisperModelSpec) {
+        val file = modelFile(spec)
+        val prefix = "${file.absolutePath}:"
+        verifiedModels.keys.removeIf { it.startsWith(prefix) }
+    }
+
     fun installedModels(): List<WhisperModelSpec> =
         ModelCatalog.all.filter(::isInstalled)
 
-    suspend fun selectedOrBestInstalled(): WhisperModelSpec? {
+    fun readyModels(): List<WhisperModelSpec> =
+        ModelCatalog.all.filter(::isModelReady)
+
+    suspend fun selectedOrBestInstalled(): WhisperModelSpec? = withContext(Dispatchers.IO) {
         val selectedId =
             settings.settings.first()
                 .selectedModelId
@@ -85,12 +97,13 @@ class ModelManager(
 
         if (
             selected != null &&
-            isInstalled(selected)
+            isInstalled(selected) &&
+            verifySha(selected)
         ) {
-            return selected
+            return@withContext selected
         }
 
-        val installed = installedModels()
+        val installed = readyModels()
         val fallback =
             installed.firstOrNull {
                 it.id == ModelCatalog.balanced.id
@@ -100,7 +113,7 @@ class ModelManager(
             settings.setSelectedModel(fallback.id)
         }
 
-        return fallback
+        fallback
     }
 
     suspend fun select(
@@ -135,6 +148,7 @@ class ModelManager(
             )
         }
 
+        invalidateVerification(spec)
         val final = modelFile(spec)
         val part = File(
             final.parentFile,
@@ -149,19 +163,40 @@ class ModelManager(
         cancelRequested = true
     }
 
-    suspend fun download(
+    suspend fun repair(
         spec: WhisperModelSpec
+    ) = withContext(Dispatchers.IO) {
+        val final = modelFile(spec)
+        val part = File(
+            final.parentFile,
+            final.name + ".part"
+        )
+        invalidateVerification(spec)
+        part.delete()
+        final.delete()
+        download(spec, forceRedownload = true)
+    }
+
+    suspend fun download(
+        spec: WhisperModelSpec,
+        forceRedownload: Boolean = false
     ) = withContext(Dispatchers.IO) {
         cancelRequested = false
 
         val finalFile = modelFile(spec)
 
-        if (isInstalled(spec)) {
-            _downloadState.value =
-                ModelDownloadState.Completed(
-                    spec.id
-                )
-            return@withContext
+        if (!forceRedownload && isInstalled(spec)) {
+            if (verifySha(spec)) {
+                _downloadState.value =
+                    ModelDownloadState.Completed(
+                        spec.id
+                    )
+                return@withContext
+            } else {
+                Log.w(TAG, "Model file for ${spec.id} failed SHA-256 integrity check. Re-downloading clean.")
+                invalidateVerification(spec)
+                finalFile.delete()
+            }
         }
 
         val partFile = File(
@@ -349,7 +384,12 @@ class ModelManager(
                         val target = modelFile(spec)
                         if (!target.exists() || target.length() < spec.minimumValidBytes) {
                             oldFile.copyTo(target, overwrite = true)
-                            Log.i(TAG, "Adopted existing model: ${spec.fileName}")
+                            if (verifySha(spec)) {
+                                Log.i(TAG, "Adopted existing verified model: ${spec.fileName}")
+                            } else {
+                                Log.w(TAG, "Adopted model ${spec.fileName} failed SHA check, deleting.")
+                                target.delete()
+                            }
                         }
                     }
                 }

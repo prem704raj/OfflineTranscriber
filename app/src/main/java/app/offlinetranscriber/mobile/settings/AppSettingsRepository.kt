@@ -22,6 +22,8 @@ class AppSettingsRepository(
             stringPreferencesKey("transcription_language")
         val onboarding =
             booleanPreferencesKey("onboarding_complete")
+        val customVocabulary =
+            stringPreferencesKey("custom_vocabulary")
     }
 
     val settings: Flow<AppSettings> =
@@ -32,7 +34,9 @@ class AppSettingsRepository(
                 languageCode =
                     prefs[Keys.language] ?: "auto",
                 onboardingComplete =
-                    prefs[Keys.onboarding] ?: false
+                    prefs[Keys.onboarding] ?: false,
+                customVocabulary =
+                    prefs[Keys.customVocabulary].orEmpty()
             )
         }
 
@@ -56,6 +60,14 @@ class AppSettingsRepository(
     ) {
         context.appSettingsDataStore.edit {
             it[Keys.onboarding] = complete
+        }
+    }
+
+    suspend fun setCustomVocabulary(
+        vocabulary: String
+    ) {
+        context.appSettingsDataStore.edit {
+            it[Keys.customVocabulary] = vocabulary.trim()
         }
     }
 }

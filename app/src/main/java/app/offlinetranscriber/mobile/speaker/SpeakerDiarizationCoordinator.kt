@@ -168,6 +168,17 @@ class SpeakerDiarizationCoordinator(
 
             Log.i(TAG, "Speaker diarization completed successfully for transcript $transcriptId")
             Result.success(Unit)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            Log.w(TAG, "Diarization cancelled for transcript $transcriptId", e)
+            withContext(kotlinx.coroutines.NonCancellable) {
+                repository.setRunStatus(
+                    transcriptId = transcriptId,
+                    status = SpeakerDiarizationStatus.FAILED.name,
+                    progress = 0,
+                    errorMessage = "Diarization cancelled"
+                )
+            }
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Diarization failed for transcript $transcriptId", e)
             repository.setRunStatus(
@@ -181,5 +192,14 @@ class SpeakerDiarizationCoordinator(
             // Clean up temporary audio file
             preparedAudio?.pcmFile?.delete()
         }
+    }
+
+    suspend fun cancelDiarization(transcriptId: Long, reason: String = "Cancelled") = withContext(Dispatchers.IO) {
+        repository.setRunStatus(
+            transcriptId = transcriptId,
+            status = SpeakerDiarizationStatus.FAILED.name,
+            progress = 0,
+            errorMessage = reason
+        )
     }
 }

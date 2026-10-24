@@ -1,5 +1,6 @@
 package app.offlinetranscriber.mobile.background
 
+import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -33,6 +34,7 @@ class TranscriptionForegroundService : Service() {
 
     private var drainJob: Job? = null
 
+    @SuppressLint("MissingPermission")
     override fun onCreate() {
         super.onCreate()
 

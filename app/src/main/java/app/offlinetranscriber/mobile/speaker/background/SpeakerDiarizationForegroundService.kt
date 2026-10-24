@@ -1,5 +1,6 @@
 package app.offlinetranscriber.mobile.speaker.background
 
+import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -14,9 +15,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SpeakerDiarizationForegroundService : Service() {
 
@@ -78,6 +81,7 @@ class SpeakerDiarizationForegroundService : Service() {
         return START_NOT_STICKY
     }
 
+    @SuppressLint("MissingPermission")
     private fun startDiarization(
         transcriptId: Long,
         audioUri: Uri,
@@ -101,8 +105,14 @@ class SpeakerDiarizationForegroundService : Service() {
                         )
                     }
                 }
-            } catch (_: CancellationException) {
-                // User cancelled or service destroyed
+            } catch (e: CancellationException) {
+                withContext(NonCancellable) {
+                    app.speakerCoordinator.cancelDiarization(transcriptId, "Diarization cancelled")
+                }
+            } catch (e: Exception) {
+                withContext(NonCancellable) {
+                    app.speakerCoordinator.cancelDiarization(transcriptId, e.message ?: "Diarization error")
+                }
             } finally {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -126,6 +136,17 @@ class SpeakerDiarizationForegroundService : Service() {
             initial,
             type
         )
+    }
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        activeJob?.cancel()
+        currentTranscriptId?.let { id ->
+            scope.launch(NonCancellable) {
+                app.speakerCoordinator.cancelDiarization(id, "Diarization timed out (system foreground service limit)")
+            }
+        }
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf(startId)
     }
 
     override fun onDestroy() {

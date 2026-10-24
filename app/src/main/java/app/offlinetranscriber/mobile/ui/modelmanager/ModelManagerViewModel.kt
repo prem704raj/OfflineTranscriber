@@ -10,18 +10,21 @@ import app.offlinetranscriber.mobile.billing.ProFeature
 import app.offlinetranscriber.mobile.modelmanager.ModelCatalog
 import app.offlinetranscriber.mobile.modelmanager.ModelDownloadState
 import app.offlinetranscriber.mobile.modelmanager.WhisperModelSpec
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ModelRowState(
     val spec: WhisperModelSpec,
     val installed: Boolean,
     val selected: Boolean,
     val recommended: Boolean,
-    val proRequired: Boolean
+    val proRequired: Boolean,
+    val isCorrupted: Boolean = false
 )
 
 data class ModelManagerUiState(
@@ -64,20 +67,25 @@ class ModelManagerViewModel(
             ) { prefs, download, entitlement ->
                 Triple(prefs, download, entitlement)
             }.collect { (prefs, download, entitlement) ->
-                val recommended =
-                    app.deviceModelAdvisor
-                        .recommend()
-
-                _state.value = _state.value.copy(
-                    rows = ModelCatalog.all.map { spec ->
+                val (rows, recommended) = withContext(Dispatchers.IO) {
+                    val rec = app.deviceModelAdvisor.recommend()
+                    val mapped = ModelCatalog.all.map { spec ->
+                        val ready = manager.isModelReady(spec)
+                        val corrupt = !ready && manager.isInstalled(spec)
                         ModelRowState(
                             spec = spec,
-                            installed = manager.isInstalled(spec),
+                            installed = ready,
                             selected = prefs.selectedModelId == spec.id,
-                            recommended = recommended.id == spec.id,
-                            proRequired = spec.id == ModelCatalog.accurate.id
+                            recommended = rec.id == spec.id,
+                            proRequired = spec.id == ModelCatalog.accurate.id,
+                            isCorrupted = corrupt
                         )
-                    },
+                    }
+                    Pair(mapped, rec)
+                }
+
+                _state.value = _state.value.copy(
+                    rows = rows,
                     download = download,
                     entitlement = entitlement
                 )
@@ -108,6 +116,14 @@ class ModelManagerViewModel(
 
     fun cancelDownload() {
         manager.cancelDownload()
+    }
+
+    fun repair(
+        spec: WhisperModelSpec
+    ) {
+        viewModelScope.launch {
+            manager.repair(spec)
+        }
     }
 
     fun select(

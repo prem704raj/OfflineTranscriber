@@ -115,6 +115,10 @@ class ModelManager(private val context: Context) {
     val downloadStates = _downloadStates.asStateFlow()
 
     fun getModelFile(model: WhisperModelInfo): File {
+        val canonical = File(File(context.filesDir, "whisper_models"), model.fileName)
+        if (canonical.exists() && canonical.length() > 1_000_000L) {
+            return canonical
+        }
         return File(modelsDir, model.fileName)
     }
 

@@ -18,7 +18,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -199,12 +201,18 @@ fun ModelManagerScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
 
-                            if (row.recommended || row.selected) {
+                            if (row.recommended || row.selected || row.isCorrupted) {
                                 Spacer(Modifier.height(8.dp))
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    if (row.isCorrupted) {
+                                        OtStatusLabel(
+                                            text = "CORRUPTED FILE",
+                                            kind = OtStatusKind.PROCESSING
+                                        )
+                                    }
                                     if (row.selected) {
                                         OtStatusLabel(
                                             text = "ACTIVE",
@@ -251,6 +259,41 @@ fun ModelManagerScreen(
                                     shape = AppShapes.Control
                                 ) {
                                     Text("Cancel")
+                                }
+                            } else if (row.isCorrupted) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            viewModel.repair(row.spec)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.error
+                                        ),
+                                        shape = AppShapes.Control
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Refresh,
+                                            contentDescription = null
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Repair Model")
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            viewModel.delete(row.spec)
+                                        },
+                                        shape = AppShapes.Control
+                                    ) {
+                                        Icon(
+                                            Icons.Default.DeleteOutline,
+                                            contentDescription = null
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Delete")
+                                    }
                                 }
                             } else if (row.proRequired && state.entitlement != Entitlement.PRO && !row.installed) {
                                 Button(

@@ -26,7 +26,7 @@
 - [x] **No Remote Telemetry**: Zero Firebase, Crashlytics, AdMob, or tracking SDKs
 - [x] **Backup Exclusion**: `android:allowBackup="false"` and `data_extraction_rules.xml` exclude private transcripts and models
 - [x] **FileProvider Tightening**: `file_paths.xml` restricted strictly to `shared_subtitles/` and `diagnostics/`
-- [x] **Exported Components Audit**: Only `MainActivity` is exported with launcher intent; all services and providers `exported="false"`
+- [x] **Exported Components Audit**: Verified exported components in AndroidManifest.xml: `MainActivity` (launcher), `ShareReceiverActivity` (system send/share audio/video intents), and `QuickRecordTileService` (system quick settings, guarded by `BIND_QUICK_SETTINGS_TILE`); all background services and content providers are strictly `exported="false"` (no unauthorized IPC surface)
 - [x] **Safe Deletion**: Privacy Center provides transactional deletion of transcripts, models, queue, and local data
 - [x] **Sanitized Diagnostics**: Shared diagnostics strip transcripts, file paths, URIs, and purchase tokens
 - [ ] **Privacy Policy URL**: Host `PRIVACY_POLICY_DRAFT.md` on a public HTTPS URL and link in Play Console

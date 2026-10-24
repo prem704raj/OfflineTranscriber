@@ -11,7 +11,9 @@ import app.offlinetranscriber.mobile.modelmanager.DeviceModelAdvisor
 import app.offlinetranscriber.mobile.modelmanager.ModelCatalog
 import app.offlinetranscriber.mobile.modelmanager.ModelManager
 import app.offlinetranscriber.mobile.settings.AppSettingsRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 
 data class EnqueueResult(
     val jobId: Long,
@@ -32,7 +34,7 @@ class EnqueueTranscriptionUseCase(
         sourceType: TranscriptionSourceType,
         displayName: String,
         isPrepared: Boolean = (sourceType != TranscriptionSourceType.VIDEO)
-    ): EnqueueResult {
+    ): EnqueueResult = withContext(Dispatchers.IO) {
         val entitlement = entitlementRepository.entitlement.first()
 
         // 1. Check Batch Queue Concurrency Limit for Free users
@@ -83,7 +85,7 @@ class EnqueueTranscriptionUseCase(
             BackgroundTranscriptionStarter.start(context)
         }
 
-        return EnqueueResult(
+        EnqueueResult(
             jobId = id,
             needsModel = needsModel
         )

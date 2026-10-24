@@ -32,6 +32,15 @@ object WhisperNative {
         translate: Boolean,
         listener: TranscriptionListener?
     ): Int
+    external fun fullTranscribeWithPrompt(
+        contextPtr: Long,
+        numThreads: Int,
+        audioData: FloatArray,
+        lang: String,
+        translate: Boolean,
+        initialPrompt: String?,
+        listener: TranscriptionListener?
+    ): Int
     external fun getTextSegmentCount(contextPtr: Long): Int
     external fun getTextSegment(contextPtr: Long, index: Int): String
     external fun getTextSegmentT0(contextPtr: Long, index: Int): Long

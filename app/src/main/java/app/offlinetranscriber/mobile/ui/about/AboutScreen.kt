@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -104,6 +105,7 @@ fun AboutScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
 
     Scaffold(
         topBar = {
@@ -204,7 +206,7 @@ fun AboutScreen(
                             onClick = {
                                 val intent = Intent(
                                     Intent.ACTION_VIEW,
-                                    Uri.parse(context.getString(R.string.privacy_policy_url))
+                                    Uri.parse(privacyPolicyUrl)
                                 )
                                 context.startActivity(intent)
                             },

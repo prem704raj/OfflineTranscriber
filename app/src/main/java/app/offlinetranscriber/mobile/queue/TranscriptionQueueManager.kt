@@ -1,11 +1,13 @@
 package app.offlinetranscriber.mobile.queue
 
+import android.util.Log
 import app.offlinetranscriber.mobile.modelmanager.ModelCatalog
 import app.offlinetranscriber.mobile.modelmanager.ModelManager
 import app.offlinetranscriber.mobile.performance.ProgressThrottler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -20,7 +22,8 @@ class TranscriptionQueueManager(
     private val repository: TranscriptionQueueRepository,
     private val modelManager: ModelManager,
     private val inputPreparer: QueueInputPreparer,
-    private val gateway: TranscriptionExecutionGateway
+    private val gateway: TranscriptionExecutionGateway,
+    private val settingsRepository: app.offlinetranscriber.mobile.settings.AppSettingsRepository? = null
 ) {
 
     private val drainMutex = Mutex()
@@ -92,6 +95,17 @@ class TranscriptionQueueManager(
     }
 
     private suspend fun processOne(job: TranscriptionJobEntity) {
+        if (job.status == TranscriptionJobStatus.COMPLETED.name) {
+            return
+        }
+
+        if (job.resultTranscriptId != null) {
+            // Already finalized transcript exists; normalize job status to COMPLETED to prevent infinite requeue loop
+            Log.i(TAG, "Job ${job.id} already has result transcript ${job.resultTranscriptId}. Normalizing status to COMPLETED.")
+            repository.complete(job.id, job.resultTranscriptId)
+            return
+        }
+
         currentJobId = job.id
         val progressThrottler = ProgressThrottler(250L)
 
@@ -104,7 +118,7 @@ class TranscriptionQueueManager(
             val requested = ModelCatalog.byId(job.modelId)
 
             val model = if (
-                requested != null && modelManager.isInstalled(requested)
+                requested != null && modelManager.isInstalled(requested) && modelManager.verifySha(requested)
             ) {
                 requested
             } else {
@@ -114,7 +128,7 @@ class TranscriptionQueueManager(
             if (model == null) {
                 repository.fail(
                     job.id,
-                    "No transcription model is installed."
+                    "No valid transcription model is installed. Please download or repair a model."
                 )
                 return
             }
@@ -179,6 +193,8 @@ class TranscriptionQueueManager(
                 progress = preparationWeight
             )
 
+            val customVocab = settingsRepository?.settings?.firstOrNull()?.customVocabulary?.takeIf { it.isNotBlank() }
+
             val transcriptId = gateway.execute(
                 request = ExecutionRequest(
                     jobId = job.id,
@@ -189,7 +205,8 @@ class TranscriptionQueueManager(
                     }.getOrDefault(TranscriptionSourceType.AUDIO),
                     displayName = job.displayName,
                     modelPath = modelManager.modelFile(model).absolutePath,
-                    languageCode = job.languageCode
+                    languageCode = job.languageCode,
+                    initialPrompt = customVocab
                 ),
                 onProgress = { whisperPercent ->
                     if (!isCancelled(job.id)) {
@@ -275,5 +292,9 @@ class TranscriptionQueueManager(
             progress = progress.coerceIn(0, 99),
             queuedAfterCurrent = queued
         )
+    }
+
+    companion object {
+        private const val TAG = "TranscriptionQueueMgr"
     }
 }

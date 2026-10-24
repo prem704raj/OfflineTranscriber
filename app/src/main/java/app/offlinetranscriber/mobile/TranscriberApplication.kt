@@ -236,7 +236,8 @@ class TranscriberApplication : Application() {
             repository = queueRepository,
             modelManager = modelManager,
             inputPreparer = inputPreparer,
-            gateway = executionGateway
+            gateway = executionGateway,
+            settingsRepository = settingsRepository
         )
 
         storageManager = StorageManager(

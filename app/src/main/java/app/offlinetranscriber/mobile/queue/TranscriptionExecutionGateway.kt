@@ -7,7 +7,8 @@ data class ExecutionRequest(
     val sourceType: TranscriptionSourceType,
     val displayName: String,
     val modelPath: String,
-    val languageCode: String
+    val languageCode: String,
+    val initialPrompt: String? = null
 )
 
 interface TranscriptionExecutionGateway {

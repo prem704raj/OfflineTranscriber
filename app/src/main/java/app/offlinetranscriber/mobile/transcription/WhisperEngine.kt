@@ -16,7 +16,77 @@ class WhisperEngine(private val context: Context) {
         private const val TAG = "WhisperEngine"
 
         val DEFAULT_THREAD_COUNT: Int
-            get() = Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
+            get() = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
+
+        const val MAX_PROMPT_TOKENS: Int = 224
+        const val MAX_PROMPT_CHARS_LATIN: Int = 800
+        const val MAX_PROMPT_CHARS_INDIC: Int = 400
+
+        fun estimateTokens(text: String): Int {
+            var tokens = 0
+            var latinChars = 0
+            for (char in text) {
+                val code = char.code
+                if (code in 0x0900..0x0D7F) {
+                    // Non-ASCII Indic script character (Devanagari, Gurmukhi, Bengali, Tamil, etc.)
+                    tokens += 1
+                } else if (char.isWhitespace()) {
+                    tokens += 1
+                } else {
+                    latinChars++
+                    if (latinChars >= 4) {
+                        tokens += 1
+                        latinChars = 0
+                    }
+                }
+            }
+            if (latinChars > 0) tokens += 1
+            return tokens
+        }
+
+        fun buildEffectivePrompt(language: String, customPrompt: String?): String? {
+            val trimmedCustom = customPrompt?.trim().orEmpty()
+            val languageHint = when (language.lowercase()) {
+                "hi" -> "नमस्ते, यह एक हिंदी और English बातचीत है। Haan, bilkul, theek hai, actually."
+                "pa" -> "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ, ਇਹ ਪੰਜਾਬੀ ਅਤੇ English ਗੱਲਬਾਤ ਹੈ।"
+                "bn" -> "নমস্কার, এটি বাংলা এবং English কথোপকথন।"
+                "mr" -> "नमस्कार, हे मराठी आणि English संभाषण आहे."
+                "ta" -> "வணக்கம், இது தமிழ் மற்றும் English உரையாடல்."
+                "te" -> "నమస్కారం, ఇది తెలుగు మరియు English సంభాషణ."
+                "gu" -> "નમસ્તે, આ ગુજરાતી અને English વાતચીત છે."
+                "kn" -> "ನಮಸ್ಕಾರ, ಇದು ಕನ್ನಡ ಮತ್ತು English ಸಂಭಾಷಣೆ."
+                "ml" -> "നമസ്കാരം, ഇത് മലയാളം மற்றும் English സംഭാഷണം ആണ്."
+                else -> null
+            }
+
+            val combined = when {
+                trimmedCustom.isNotEmpty() && languageHint != null -> "$languageHint $trimmedCustom"
+                trimmedCustom.isNotEmpty() -> trimmedCustom
+                else -> languageHint
+            } ?: return null
+
+            val hasIndic = combined.any { it.code in 0x0900..0x0D7F }
+            val charLimit = if (hasIndic) MAX_PROMPT_CHARS_INDIC else MAX_PROMPT_CHARS_LATIN
+
+            var candidate = if (combined.length > charLimit) {
+                val cut = combined.take(charLimit)
+                val lastSpace = cut.lastIndexOf(' ')
+                if (lastSpace > charLimit / 2) cut.substring(0, lastSpace).trim() else cut.trim()
+            } else {
+                combined
+            }
+
+            while (candidate.isNotEmpty() && estimateTokens(candidate) > MAX_PROMPT_TOKENS) {
+                val lastSpace = candidate.lastIndexOf(' ')
+                if (lastSpace > 0) {
+                    candidate = candidate.substring(0, lastSpace).trim()
+                } else {
+                    candidate = candidate.take(candidate.length / 2).trim()
+                }
+            }
+
+            return candidate.ifEmpty { null }
+        }
     }
 
     private var contextPtr: Long = 0L
@@ -98,6 +168,7 @@ class WhisperEngine(private val context: Context) {
         audioSamples: FloatArray,
         language: String = "auto",
         translate: Boolean = false,
+        initialPrompt: String? = null,
         numThreads: Int = DEFAULT_THREAD_COUNT,
         onProgress: ((Int) -> Unit)? = null,
         onNewSegment: ((TranscriptSegment) -> Unit)? = null
@@ -129,16 +200,18 @@ class WhisperEngine(private val context: Context) {
                 }
             }
 
-            Log.i(TAG, "Running transcription: samples=${audioSamples.size}, lang=$language, translate=$translate, threads=$numThreads")
+            val effectivePrompt = buildEffectivePrompt(language, initialPrompt)
+            Log.i(TAG, "Running transcription: samples=${audioSamples.size}, lang=$language, translate=$translate, threads=$numThreads, hasPrompt=${effectivePrompt != null}")
             val code = app.offlinetranscriber.mobile.processing.HeavyAudioMlArbiter.withLease(
                 app.offlinetranscriber.mobile.processing.HeavyMlTaskType.WHISPER_TRANSCRIPTION
             ) {
-                WhisperNative.fullTranscribe(
+                WhisperNative.fullTranscribeWithPrompt(
                     contextPtr = contextPtr,
                     numThreads = numThreads,
                     audioData = audioSamples,
                     lang = language,
                     translate = translate,
+                    initialPrompt = effectivePrompt,
                     listener = listener
                 )
             }

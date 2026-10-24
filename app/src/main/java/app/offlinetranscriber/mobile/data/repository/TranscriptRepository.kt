@@ -2,7 +2,9 @@ package app.offlinetranscriber.mobile.data.repository
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
+import androidx.room.withTransaction
 import app.offlinetranscriber.mobile.R
 import app.offlinetranscriber.mobile.data.database.AppDatabase
 import app.offlinetranscriber.mobile.data.database.TranscriptDao
@@ -21,6 +23,13 @@ import app.offlinetranscriber.mobile.domain.model.TranscriptionRequest
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.File
+
+data class DeleteAudioResult(
+    val mediaDeleted: Boolean,
+    val referenceCleared: Boolean,
+    val message: String
+)
 
 class TranscriptRepository(
     private val context: Context,
@@ -79,6 +88,119 @@ class TranscriptRepository(
         transcriptDao.updateTitle(id, newTitle)
     }
 
+    suspend fun searchAndReplace(
+        transcriptId: Long,
+        findText: String,
+        replaceText: String,
+        matchCase: Boolean = false
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        if (findText.isEmpty()) {
+            return@withContext Result.failure(IllegalArgumentException("Search text cannot be empty"))
+        }
+
+        val database = AppDatabase.getInstance(context)
+        database.withTransaction {
+            val transcript = transcriptDao.getTranscriptById(transcriptId)
+                ?: return@withTransaction Result.failure(NoSuchElementException("Transcript not found: $transcriptId"))
+
+            val segments = transcript.getSegments().toMutableList()
+            val entities = transcriptDao.getSegmentsByTranscriptId(transcriptId)
+            val entityMap = entities.associateBy { it.id }
+
+            var totalReplacements = 0
+            val updatedSegments = segments.mapIndexed { index, seg ->
+                val count = if (matchCase) {
+                    seg.text.split(findText).size - 1
+                } else {
+                    Regex(Regex.escape(findText), RegexOption.IGNORE_CASE).findAll(seg.text).count()
+                }
+
+                val matchedEntity = entityMap[seg.id] ?: entities.getOrNull(index)
+                if (count > 0) {
+                    totalReplacements += count
+                    val quotedReplacement = java.util.regex.Matcher.quoteReplacement(replaceText)
+                    val newText = if (matchCase) {
+                        seg.text.replace(findText, replaceText)
+                    } else {
+                        seg.text.replace(Regex(Regex.escape(findText), RegexOption.IGNORE_CASE), quotedReplacement)
+                    }
+                    if (matchedEntity != null) {
+                        transcriptDao.updateSegmentEntity(matchedEntity.id, newText.trim(), matchedEntity.startMs, matchedEntity.endMs)
+                    }
+                    seg.copy(
+                        id = matchedEntity?.id ?: seg.id,
+                        text = newText.trim()
+                    )
+                } else {
+                    if (matchedEntity != null && matchedEntity.id != seg.id) {
+                        seg.copy(id = matchedEntity.id)
+                    } else {
+                        seg
+                    }
+                }
+            }
+
+            if (totalReplacements > 0) {
+                val updatedJson = Json.encodeToString(updatedSegments)
+                val updatedFullText = updatedSegments.joinToString(" ") { it.text.trim() }
+                transcriptDao.updateSegments(transcriptId, updatedJson, updatedFullText)
+            }
+
+            Result.success(totalReplacements)
+        }
+    }
+
+    suspend fun deleteAudioRetainingTranscript(transcriptId: Long): Result<DeleteAudioResult> = withContext(Dispatchers.IO) {
+        val transcript = transcriptDao.getTranscriptById(transcriptId)
+            ?: return@withContext Result.failure(NoSuchElementException("Transcript not found: $transcriptId"))
+
+        var fileDeleted = false
+        val uriStr = transcript.audioUriString
+        if (!uriStr.isNullOrBlank()) {
+            try {
+                val uri = Uri.parse(uriStr)
+                when (uri.scheme) {
+                    "file" -> {
+                        val file = File(uri.path.orEmpty())
+                        if (file.exists()) {
+                            fileDeleted = file.delete()
+                        }
+                    }
+                    "content" -> {
+                        fileDeleted = try {
+                            if (DocumentsContract.isDocumentUri(context, uri)) {
+                                DocumentsContract.deleteDocument(context.contentResolver, uri)
+                            } else {
+                                context.contentResolver.delete(uri, null, null) > 0
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Could not delete content URI $uri", e)
+                            false
+                        }
+                    }
+                    else -> {
+                        if (uriStr.startsWith("/")) {
+                            val file = File(uriStr)
+                            if (file.exists()) {
+                                fileDeleted = file.delete()
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error attempting to delete audio file: $uriStr", e)
+            }
+        }
+
+        transcriptDao.clearAudioUri(transcriptId)
+        val msg = if (fileDeleted) {
+            "Audio file deleted. Transcript preserved."
+        } else {
+            "Audio reference unlinked. Transcript preserved."
+        }
+        Result.success(DeleteAudioResult(mediaDeleted = fileDeleted, referenceCleared = true, message = msg))
+    }
+
     suspend fun deleteTranscript(id: Long) = withContext(Dispatchers.IO) {
         transcriptDao.deleteById(id)
     }
@@ -133,6 +255,7 @@ class TranscriptRepository(
                 audioSamples = audioSamples,
                 language = request.language,
                 translate = request.translate,
+                initialPrompt = request.initialPrompt,
                 onProgress = { progress ->
                     onStateChange(TranscriptionState.Transcribing(progress, liveSegments.toList()))
                 },

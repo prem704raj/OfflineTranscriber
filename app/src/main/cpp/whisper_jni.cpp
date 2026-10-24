@@ -172,9 +172,10 @@ Java_app_offlinetranscriber_mobile_transcription_WhisperNative_freeContext(
 }
 
 JNIEXPORT jint JNICALL
-Java_app_offlinetranscriber_mobile_transcription_WhisperNative_fullTranscribe(
+Java_app_offlinetranscriber_mobile_transcription_WhisperNative_fullTranscribeWithPrompt(
         JNIEnv *env, jobject /*thiz*/, jlong context_ptr, jint num_threads,
-        jfloatArray audio_data, jstring lang_str, jboolean translate, jobject listener) {
+        jfloatArray audio_data, jstring lang_str, jboolean translate,
+        jstring initial_prompt_str, jobject listener) {
     auto *context = reinterpret_cast<struct whisper_context *>(context_ptr);
     if (!context) {
         LOGE("Context pointer is null");
@@ -194,6 +195,19 @@ Java_app_offlinetranscriber_mobile_transcription_WhisperNative_fullTranscribe(
     params.offset_ms = 0;
     params.no_context = true;
     params.single_segment = false;
+
+    std::string prompt_str;
+    if (initial_prompt_str) {
+        const char *p = env->GetStringUTFChars(initial_prompt_str, nullptr);
+        if (p) {
+            prompt_str = p;
+            env->ReleaseStringUTFChars(initial_prompt_str, p);
+            if (!prompt_str.empty()) {
+                params.initial_prompt = prompt_str.c_str();
+                params.carry_initial_prompt = true;
+            }
+        }
+    }
 
     std::string language_str;
     if (lang_str) {
@@ -232,7 +246,8 @@ Java_app_offlinetranscriber_mobile_transcription_WhisperNative_fullTranscribe(
         params.abort_callback_user_data = &cb_data;
     }
 
-    LOGI("Starting transcription: %d samples, threads=%d, lang=%s", n_samples, params.n_threads, params.language);
+    LOGI("Starting transcription: %d samples, threads=%d, lang=%s, has_prompt=%s",
+         n_samples, params.n_threads, params.language, params.initial_prompt ? "yes" : "no");
     whisper_reset_timings(context);
 
     int result = whisper_full(context, params, samples, n_samples);
@@ -247,6 +262,14 @@ Java_app_offlinetranscriber_mobile_transcription_WhisperNative_fullTranscribe(
     }
 
     return result;
+}
+
+JNIEXPORT jint JNICALL
+Java_app_offlinetranscriber_mobile_transcription_WhisperNative_fullTranscribe(
+        JNIEnv *env, jobject thiz, jlong context_ptr, jint num_threads,
+        jfloatArray audio_data, jstring lang_str, jboolean translate, jobject listener) {
+    return Java_app_offlinetranscriber_mobile_transcription_WhisperNative_fullTranscribeWithPrompt(
+        env, thiz, context_ptr, num_threads, audio_data, lang_str, translate, nullptr, listener);
 }
 
 JNIEXPORT jint JNICALL

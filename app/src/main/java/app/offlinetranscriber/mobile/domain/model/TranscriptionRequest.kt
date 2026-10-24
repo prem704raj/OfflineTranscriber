@@ -10,5 +10,6 @@ data class TranscriptionRequest(
     val suggestedTitle: String? = null,
     val audioFileName: String? = null,
     val language: String = "auto",
-    val translate: Boolean = false
+    val translate: Boolean = false,
+    val initialPrompt: String? = null
 )

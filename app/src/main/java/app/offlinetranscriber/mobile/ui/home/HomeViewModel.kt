@@ -15,10 +15,12 @@ import app.offlinetranscriber.mobile.modelmanager.ModelCatalog
 import app.offlinetranscriber.mobile.modelmanager.WhisperModelSpec
 import app.offlinetranscriber.mobile.queue.TranscriptionJobEntity
 import app.offlinetranscriber.mobile.queue.TranscriptionSourceType
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -51,6 +53,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .map { prefs ->
             ModelCatalog.byId(prefs.selectedModelId) ?: modelManager.installedModels().firstOrNull() ?: ModelCatalog.balanced
         }
+        .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _message = MutableStateFlow<String?>(null)
@@ -61,7 +64,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun enqueueAudio(uri: Uri, onEnqueued: ((needsModel: Boolean) -> Unit)? = null) {
         val fileName = getFileNameFromUri(uri) ?: "Audio_${System.currentTimeMillis()}"
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 enqueueUseCase(
                     inputUri = uri,
@@ -83,7 +86,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun enqueueRawVideo(uri: Uri, onEnqueued: ((needsModel: Boolean) -> Unit)? = null) {
         val fileName = getFileNameFromUri(uri) ?: "Video_${System.currentTimeMillis()}"
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 enqueueUseCase(
                     inputUri = uri,
@@ -105,7 +108,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun enqueueRecording(recordedUri: Uri, title: String, onEnqueued: ((needsModel: Boolean) -> Unit)? = null) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 enqueueUseCase(
                     inputUri = recordedUri,
@@ -132,7 +135,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         displayName: String,
         onEnqueued: ((needsModel: Boolean) -> Unit)? = null
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 enqueueUseCase(
                     inputUri = extractedAudioUri,
@@ -154,7 +157,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun enqueueSampleTest(onEnqueued: ((needsModel: Boolean) -> Unit)? = null) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 enqueueUseCase(
                     inputUri = Uri.parse("asset://jfk.wav"),
@@ -192,6 +195,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteTranscript(id: Long) {
         viewModelScope.launch {
             repository.deleteTranscript(id)
+        }
+    }
+
+    fun searchAndReplace(
+        id: Long,
+        findText: String,
+        replaceText: String,
+        matchCase: Boolean = false,
+        onComplete: (Int) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val res = repository.searchAndReplace(id, findText, replaceText, matchCase)
+            onComplete(res.getOrDefault(0))
+        }
+    }
+
+    fun deleteAudioRetainingTranscript(id: Long, onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val res = repository.deleteAudioRetainingTranscript(id)
+            onComplete(res.getOrNull()?.referenceCleared ?: false)
         }
     }
 

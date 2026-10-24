@@ -134,6 +134,9 @@ class AppTranscriptionExecutionGateway(
         var chunkIndex = (currentStartSample / ((WINDOW_SECONDS - OVERLAP_SECONDS) * AudioProcessor.TARGET_SAMPLE_RATE.toLong())).toInt()
 
         // 4. Windowed Chunk Inference Loop
+        var lastCheckpointSample = currentStartSample
+        var lastCheckpointTimeMs = System.currentTimeMillis()
+
         while (currentStartSample < totalSamples) {
             if (isCancelled()) {
                 throw CancellationException("Transcription job ${request.jobId} cancelled during processing.")
@@ -146,6 +149,7 @@ class AppTranscriptionExecutionGateway(
                 audioSamples = window.samples,
                 language = language,
                 translate = false,
+                initialPrompt = request.initialPrompt,
                 onProgress = { _ -> },
                 onNewSegment = { _ -> }
             )
@@ -174,13 +178,21 @@ class AppTranscriptionExecutionGateway(
                 .toInt().coerceIn(10, 99)
             onProgress(progressPercent)
 
-            // Persist checkpoint to database
-            val segmentsJson = Json.encodeToString(accumulatedSegments)
-            queueRepository.saveCheckpoint(
-                id = request.jobId,
-                nextSample = currentStartSample,
-                segmentsJson = segmentsJson
-            )
+            // Persist checkpoint to database with write throttling (every 60s of audio or 30s wall-clock)
+            val shouldCheckpoint = (currentStartSample - lastCheckpointSample >= 16_000L * 60) ||
+                (System.currentTimeMillis() - lastCheckpointTimeMs >= 30_000L) ||
+                (currentStartSample >= totalSamples)
+
+            if (shouldCheckpoint) {
+                lastCheckpointSample = currentStartSample
+                lastCheckpointTimeMs = System.currentTimeMillis()
+                val segmentsJson = Json.encodeToString(accumulatedSegments)
+                queueRepository.saveCheckpoint(
+                    id = request.jobId,
+                    nextSample = currentStartSample,
+                    segmentsJson = segmentsJson
+                )
+            }
         }
 
         if (isCancelled()) {
@@ -224,6 +236,7 @@ class AppTranscriptionExecutionGateway(
             }
             transcriptDao.updateSegments(newId, Json.encodeToString(numbered), fullText)
             queueRepository.clearCheckpoint(request.jobId)
+            database.transcriptionJobDao().complete(request.jobId, newId)
             newId
         }
 

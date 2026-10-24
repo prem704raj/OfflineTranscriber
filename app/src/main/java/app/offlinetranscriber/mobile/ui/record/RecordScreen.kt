@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.widget.Toast
+import app.offlinetranscriber.mobile.recorder.WavAudioWriter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -28,6 +30,8 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -54,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import app.offlinetranscriber.mobile.recorder.RecordingDraftJournal
 import app.offlinetranscriber.mobile.recorder.RecordingForegroundService
 import app.offlinetranscriber.mobile.recorder.RecordingSessionStore
 import app.offlinetranscriber.mobile.recorder.RecordingStatus
@@ -79,6 +84,7 @@ fun RecordScreen(
     val context = LocalContext.current
     val recordingState by RecordingSessionStore.state.collectAsState()
     var showDiscardConfirm by remember { mutableStateOf(false) }
+    var recoverableDraft by remember { mutableStateOf(RecordingDraftJournal.getRecoverableDraft(context)) }
 
     var hasMicPermission by remember {
         mutableStateOf(
@@ -221,6 +227,71 @@ fun RecordScreen(
                 ) {
                     when (recordingState.status) {
                         RecordingStatus.IDLE -> {
+                            val draft = recoverableDraft
+                            if (draft != null) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = AppDimens.Space4),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                    ),
+                                    shape = AppShapes.Card
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text(
+                                            text = "Recovered Audio Draft",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "An interrupted recording of ${formatDuration(draft.durationMs)} was safely preserved on your phone.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Button(
+                                                onClick = {
+                                                    val file = File(draft.filePath)
+                                                    if (file.exists() && file.length() > WavAudioWriter.HEADER_SIZE) {
+                                                        WavAudioWriter.repairWavHeader(file)
+                                                        RecordingDraftJournal.clear(context)
+                                                        recoverableDraft = null
+                                                        onTranscribe(file)
+                                                    } else {
+                                                        Toast.makeText(context, "Preserved audio file is missing or contains no data.", Toast.LENGTH_SHORT).show()
+                                                        RecordingDraftJournal.clear(context)
+                                                        recoverableDraft = null
+                                                    }
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                shape = AppShapes.Button
+                                            ) {
+                                                Icon(OtIcons.Transcript, contentDescription = null)
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("Transcribe")
+                                            }
+                                            OutlinedButton(
+                                                onClick = {
+                                                    RecordingDraftJournal.discard(context)
+                                                    recoverableDraft = null
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                shape = AppShapes.Button
+                                            ) {
+                                                Text("Discard")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             Button(
                                 onClick = {
                                     if (hasMicPermission) {
@@ -351,8 +422,11 @@ fun RecordScreen(
                                     onClick = {
                                         recordingState.filePath?.let { path ->
                                             val file = File(path)
-                                            if (file.exists()) {
+                                            if (file.exists() && file.length() > WavAudioWriter.HEADER_SIZE) {
+                                                WavAudioWriter.repairWavHeader(file)
                                                 onTranscribe(file)
+                                            } else {
+                                                Toast.makeText(context, "No audio recorded to transcribe.", Toast.LENGTH_SHORT).show()
                                             }
                                         }
                                     },
@@ -384,14 +458,42 @@ fun RecordScreen(
                         }
 
                         RecordingStatus.ERROR -> {
-                            Button(
-                                onClick = {
-                                    RecordingSessionStore.reset()
-                                },
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = AppShapes.Button
+                                verticalArrangement = Arrangement.spacedBy(AppDimens.Space3)
                             ) {
-                                Text("Try Again")
+                                val savedAudio = recordingState.filePath?.let { File(it) }
+                                if (savedAudio != null && savedAudio.exists() && savedAudio.length() > 1024L) {
+                                    Button(
+                                        onClick = {
+                                            RecordingDraftJournal.clear(context)
+                                            RecordingSessionStore.reset()
+                                            onTranscribe(savedAudio)
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(AppDimens.PrimaryTouchTarget),
+                                        shape = AppShapes.Button
+                                    ) {
+                                        Icon(OtIcons.Transcript, contentDescription = null)
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            "Transcribe Preserved Audio",
+                                            style = MaterialTheme.typography.labelLarge
+                                        )
+                                    }
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        RecordingDraftJournal.clear(context)
+                                        RecordingSessionStore.reset()
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = AppShapes.Button
+                                ) {
+                                    Text("Dismiss & Try Again")
+                                }
                             }
                         }
                     }

@@ -27,3 +27,7 @@ secrets.properties
 service-account*.json
 dependencies.txt
 
+# Logs
+*.log
+
+

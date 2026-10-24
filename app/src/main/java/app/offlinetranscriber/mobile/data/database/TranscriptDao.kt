@@ -51,6 +51,9 @@ interface TranscriptDao {
     @Query("DELETE FROM transcript_segments WHERE transcriptId = :transcriptId")
     suspend fun deleteSegmentsByTranscriptId(transcriptId: Long)
 
+    @Query("UPDATE transcripts SET audioUriString = NULL WHERE id = :id")
+    suspend fun clearAudioUri(id: Long)
+
     @Delete
     suspend fun deleteTranscript(transcript: TranscriptEntity)
 
