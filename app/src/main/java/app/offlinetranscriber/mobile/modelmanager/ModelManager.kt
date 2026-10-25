@@ -118,29 +118,29 @@ class ModelManager(
 
     suspend fun select(
         spec: WhisperModelSpec
-    ) {
-        require(isInstalled(spec)) {
-            "Model is not installed."
+    ) = withContext(Dispatchers.IO) {
+        require(isModelReady(spec)) {
+            "Model is missing or failed SHA-256 verification."
         }
         settings.setSelectedModel(spec.id)
     }
 
     suspend fun delete(
         spec: WhisperModelSpec
-    ) {
+    ) = withContext(Dispatchers.IO) {
         val current =
             settings.settings.first()
                 .selectedModelId
 
         if (current == spec.id) {
             val alternate =
-                installedModels()
+                readyModels()
                     .firstOrNull {
                         it.id != spec.id
                     }
 
             require(alternate != null) {
-                "Download another model before deleting the active model."
+                "Download another verified model before deleting the active model."
             }
 
             settings.setSelectedModel(

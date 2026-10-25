@@ -217,7 +217,7 @@ class TranscriberApplication : Application() {
             modelManager = legacyModelManager,
             whisperEngine = whisperEngine,
             audioProcessor = audioProcessor,
-            transcriptDao = db.transcriptDao()
+            database = db
         )
 
         queueRepository = TranscriptionQueueRepository(db.transcriptionJobDao())

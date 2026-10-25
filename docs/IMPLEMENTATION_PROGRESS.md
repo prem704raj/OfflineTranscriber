@@ -2,18 +2,20 @@
 
 **Repository:** OfflineTranscriber (Android)  
 **Initial Audit Date:** 24 October 2026  
-**Status:** All Core Phases Implemented & Verified (Shippable Release Candidate)
+**Status:** Local hardening branch; CI and physical-device verification pending — NOT a shippable release candidate
+
+> Verification scope: the entries below describe implemented code. The authoritative release status and evidence ledger is `AUDIT_FINDINGS.md` at the repository root. CI has not run the hardened branch, and no physical-device, Play Console, or release-signing verification has been completed.
 
 ---
 
-## 1. Shippable Phases Overview
+## 1. Phase Implementation Overview
 
 | Phase | Description | Status | Target Date / Milestone |
 |---|---|---|---|
-| **Phase 1** | Critical Reliability & Data-Safety Fixes | Completed | Phase 1 Complete (100% Verified) |
-| **Phase 2** | Transcription Performance, Memory Optimization & Indic Languages | Completed | Phase 2 Complete (100% Verified) |
-| **Phase 3** | Missing Productivity & Transcript-Management Features | Completed | Phase 3 Complete (100% Verified) |
-| **Phase 4** | UX Polish, Monetization, Quick Settings & Release Readiness | Completed | Phase 4 Complete (100% Verified) |
+| **Phase 1** | Critical Reliability & Data-Safety Fixes | Implemented; local verification only | Device and fault-injection verification pending |
+| **Phase 2** | Transcription Performance, Memory Optimization & Indic Languages | Implemented; local verification only | Accuracy/latency benchmarks pending |
+| **Phase 3** | Missing Productivity & Transcript-Management Features | Implemented; local verification only | Device/UI verification pending |
+| **Phase 4** | UX Polish, Monetization, Quick Settings & Release Readiness | Implemented; local verification only | Play Console and release-signing verification pending |
 
 ---
 
@@ -108,26 +110,31 @@
 ## 6. Verification & Test Log
 
 - **Environment & Build Tuning:** JDK 17 (`Eclipse Adoptium jdk-17.0.20.101-hotspot`), Android SDK API 26–36, Gradle 9.5.0, CMake 3.22.1 with C++17. Tuned JVM args in `gradle.properties`: `-Xmx2048m -XX:MaxMetaspaceSize=512m -XX:+UseG1GC -XX:CICompilerCount=2`.
-- **Unit Tests (`./gradlew testDebugUnitTest`):**
+- **Unit Tests (`./gradlew testDebugUnitTest` under JDK 17, with `--rerun-tasks` for the full audit run):**
   - **Result: BUILD SUCCESSFUL.**
-  - **Total Tests: 198 passed across 67 test suites, 0 failed, 0 skipped (100% pass rate).**
+  - **Total Tests: 204 passed across 68 test suites, 0 failed, 0 errors, 0 skipped.**
+  - Full-suite rerun artifacts: `app/build/test-results/testDebugUnitTest/TEST-*.xml`.
   - Verified test suites:
     - `IndicTranscriptionQualityBenchmarkTest` (5 tests: Levenshtein Word Error Rate (WER) & Character Error Rate (CER), bilingual Hinglish context prompt WER improvement, RTF bounds validation (< 1.0x), Indic 224-token bound enforcement)
     - `LegacyM4aSafetyTest` (2 tests: non-WAV container protection verifying `repairWavHeader` refuses to modify M4A files and preserves `ftyp` box byte-for-byte, recoverable draft recovery for legacy M4A)
     - `ModelManagerVerificationTest` (3 tests: model file installation bounds, SHA-256 verification and corruption rejection, cache key invalidation)
     - `CrashSafeAudioRecorderTest` (3 tests: write failure error state & callback triggering, `stop()` failure reporting on write errors, in-place header sealing)
-    - `CrashSafeWavRecordingTest` (4 tests: canonical 44-byte WAV header generation, abrupt crash recovery with in-place header repair from physical PCM bytes, corrupted/empty draft filtering, true duration calculation from physical PCM length)
+    - `CrashSafeWavRecordingTest` (7 tests: canonical 44-byte WAV header generation, abrupt crash recovery with in-place header repair from physical PCM bytes, non-RIFF files rejected without synthetic rewriting, non-canonical format fields rejected, overclaimed data-chunk sizes rejected, corrupted/empty draft filtering, true duration calculation from physical PCM length)
     - `TranscriptionQueueRetryTest` (2 tests: normalization of jobs with `resultTranscriptId != null` to break infinite queue drain loop, retry clearing `resultTranscriptId = NULL`)
     - `TranscriptSearchReplaceTest` (5 tests: restored transcript segment ID remapping & healing, regex replacement safety with `$` and `\` via `Matcher.quoteReplacement`, live occurrence counting, `DeleteAudioResult` physical deletion vs DB unlinking differentiation)
     - `WhisperEnginePromptTest` (8 tests: Hinglish bilingual markers, Punjabi Gurmukhi hints, custom vocabulary injection, word-boundary prompt truncation enforcing both `MAX_PROMPT_CHARS_INDIC = 400` and `MAX_PROMPT_TOKENS = 224`)
     - `LanguageCatalogTest` (4 tests: Punjabi, Gujarati, Kannada, Malayalam, Indic detection, fallback)
-    - `RecordingDraftJournalTest` (6 tests: draft persistence, heartbeat, audio preservation on abort)
+    - `RecordingDraftJournalTest` (9 tests: draft persistence, heartbeat, audio preservation on abort, atomic replacement, ownership/path validation, M4A `ftyp` validation, malformed and missing-`ftyp` rejection)
     - `ShortcutActionsTest` (verification against actual `shortcuts.xml` resource bindings)
-- **Android Lint (`./gradlew lintDebug`):**
-  - **Result: BUILD SUCCESSFUL (0 errors).**
-  - Resolved `MissingPermission` on foreground service notifications, `ContextCastToActivity` in `PaywallScreen`, `LocalContextGetResourceValueCall` in `AboutScreen` and `SettingsScreen`, and verified release builds with `checkReleaseBuilds = true`.
-- **Native C++ & Dex Packaging (`./gradlew assembleDebug`):**
+- **Android Lint (`./gradlew lintDebug lintRelease`):**
+  - **Result: BUILD SUCCESSFUL; 0 errors and 77 warnings in each report.**
+  - `checkReleaseBuilds = true` is enabled in `app/build.gradle.kts`, and CI runs both `lintDebug` and `lintRelease`.
+  - Resolved `MissingPermission` on foreground service notifications, `ContextCastToActivity` in `PaywallScreen`, `LocalContextGetResourceValueCall` in `AboutScreen` and `SettingsScreen`.
+- **Native C++ & Dex Packaging (`./gradlew assembleDebug assembleDebugAndroidTest`):**
   - **Result: BUILD SUCCESSFUL.**
-  - Native library `libwhisper_jni.so` compiled and linked cleanly across `arm64-v8a`, `armeabi-v7a`, and `x86_64` with 16 KB page-size alignment.
-  - Debug APK generated: `app/build/outputs/apk/debug/app-debug.apk` (134,699,765 bytes).
+  - Native library `libwhisper_jni.so` compiled and linked cleanly across `arm64-v8a`, `armeabi-v7a`, and `x86_64`.
+  - 16 KB alignment evidence: 23 of 24 packaged `.so` files have `0x4000` `PT_LOAD` alignment. The remaining `armeabi-v7a/libomp.so` has `0x1000`; 32-bit ABIs are not required to meet the 16 KB rule, but runtime 16 KB behavior remains device-verification-only.
+  - Debug APK: `app/build/outputs/apk/debug/app-debug.apk` (size recorded in `AUDIT_FINDINGS.md`); instrumentation APK is generated by `assembleDebugAndroidTest`.
+  - `zipalign -c -P 16 -v 4 app-debug.apk` passes.
+- **Not yet verified:** GitHub Actions on the hardened branch, physical-device fault injection and 16 KB runtime behavior, release signing/R8, and Play Console declarations/data safety.
 

@@ -171,11 +171,16 @@ class WhisperEngine(private val context: Context) {
         initialPrompt: String? = null,
         numThreads: Int = DEFAULT_THREAD_COUNT,
         onProgress: ((Int) -> Unit)? = null,
-        onNewSegment: ((TranscriptSegment) -> Unit)? = null
+        onNewSegment: ((TranscriptSegment) -> Unit)? = null,
+        shouldCancel: (() -> Boolean)? = null
     ): Result<List<TranscriptSegment>> = withContext(Dispatchers.Default) {
         mutex.withLock {
             if (contextPtr == 0L) {
                 return@withContext Result.failure(IllegalStateException("No Whisper model is loaded"))
+            }
+
+            if (shouldCancel?.invoke() == true) {
+                return@withContext Result.failure(InterruptedException("Transcription was cancelled"))
             }
 
             isCancelledFlag.set(false)
@@ -196,7 +201,7 @@ class WhisperEngine(private val context: Context) {
                 }
 
                 override fun isCancelled(): Boolean {
-                    return isCancelledFlag.get()
+                    return isCancelledFlag.get() || shouldCancel?.invoke() == true
                 }
             }
 
@@ -216,7 +221,7 @@ class WhisperEngine(private val context: Context) {
                 )
             }
 
-            if (isCancelledFlag.get()) {
+            if (isCancelledFlag.get() || shouldCancel?.invoke() == true) {
                 Log.w(TAG, "Transcription was cancelled by user")
                 return@withContext Result.failure(InterruptedException("Transcription was cancelled"))
             }
