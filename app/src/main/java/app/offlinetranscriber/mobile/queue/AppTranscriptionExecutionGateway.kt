@@ -74,13 +74,24 @@ class AppTranscriptionExecutionGateway(
 
         // 2. Prepare or Resume PCM16 File
         val pcmDir = File(context.cacheDir, "transcription_pcm").apply { mkdirs() }
-        val pcmFile = if (!job?.preparedPcmPath.isNullOrBlank()) {
-            File(job!!.preparedPcmPath!!)
-        } else {
-            File(pcmDir, "job_${request.jobId}.pcm")
-        }
+        val pcmFile = job?.preparedPcmPath
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::File)
+            ?: File(pcmDir, "job_${request.jobId}.pcm")
+        val pcmReadyMarker = File("${pcmFile.absolutePath}.ready")
 
-        if (!pcmFile.exists() || pcmFile.length() == 0L) {
+        // A PCM file is only resumable after a completed preparation. The marker
+        // prevents a process death during decode from leaving a truncated PCM that
+        // is mistaken for the full recording on the next attempt.
+        val pcmNeedsPreparation = !pcmFile.exists() ||
+            pcmFile.length() == 0L ||
+            !pcmReadyMarker.exists()
+        if (pcmNeedsPreparation) {
+            // Any checkpoint belongs to the previous PCM file. Rebuilding the
+            // audio invalidates it, so clear it before decoding starts.
+            queueRepository.clearCheckpoint(request.jobId)
+            pcmReadyMarker.delete()
+
             // Check storage headroom before decoding
             val requiredBytes = 100L * 1024L * 1024L // ~100MB headroom
             when (storageCapacityChecker.checkInternal(requiredBytes)) {
@@ -90,10 +101,14 @@ class AppTranscriptionExecutionGateway(
                 CapacityResult.Enough -> Unit
             }
 
+            pcmFile.parentFile?.mkdirs()
+            val tempPcm = File(pcmFile.parentFile, "${pcmFile.name}.preparing")
+            tempPcm.delete()
+
             val inputUri = Uri.parse(request.inputUri)
             audioProcessor.prepareToPcm16(
                 uri = inputUri,
-                outputFile = pcmFile,
+                outputFile = tempPcm,
                 onProgress = { prepPercent ->
                     // Scaling audio prep to 0-10% of total job progress
                     val mapped = (prepPercent * 0.1f).toInt().coerceIn(0, 10)
@@ -101,6 +116,12 @@ class AppTranscriptionExecutionGateway(
                 },
                 isCancelled = isCancelled
             )
+
+            if (!tempPcm.renameTo(pcmFile)) {
+                tempPcm.delete()
+                error("Failed to finalize prepared PCM audio.")
+            }
+            pcmReadyMarker.createNewFile()
             queueRepository.setPreparedPcmPath(request.jobId, pcmFile.absolutePath)
         }
 
@@ -111,18 +132,32 @@ class AppTranscriptionExecutionGateway(
         // 3. Checkpoint Resume
         val accumulatedSegments = mutableListOf<TranscriptSegment>()
         var currentStartSample = 0L
+        val checkpointSample = job?.checkpointSample ?: 0L
+        val chunkStepSamples = (WINDOW_SECONDS - OVERLAP_SECONDS) *
+            AudioProcessor.TARGET_SAMPLE_RATE.toLong()
+        val checkpointIsConsistent = checkpointSample in 1..totalSamples &&
+            (checkpointSample % chunkStepSamples == 0L || checkpointSample == totalSamples)
+        val resumeJson = job?.partialSegmentsJson
 
-        if (job != null && job.checkpointSample > 0L && job.partialSegmentsJson.isNotBlank() && job.partialSegmentsJson != "[]") {
+        if (!pcmNeedsPreparation &&
+            checkpointIsConsistent &&
+            !resumeJson.isNullOrBlank() &&
+            resumeJson != "[]"
+        ) {
             try {
-                val restored = Json.decodeFromString<List<TranscriptSegment>>(job.partialSegmentsJson)
+                val restored = Json.decodeFromString<List<TranscriptSegment>>(resumeJson)
                 accumulatedSegments.addAll(restored)
-                currentStartSample = job.checkpointSample
+                currentStartSample = checkpointSample
                 Log.i(TAG, "Resuming job ${request.jobId} from sample $currentStartSample with ${restored.size} segments.")
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to restore checkpoint for job ${request.jobId}, starting from beginning", e)
                 accumulatedSegments.clear()
                 currentStartSample = 0L
+                queueRepository.clearCheckpoint(request.jobId)
             }
+        } else if (!pcmNeedsPreparation && checkpointSample > 0L) {
+            Log.w(TAG, "Discarding inconsistent checkpoint for job ${request.jobId} at sample $checkpointSample")
+            queueRepository.clearCheckpoint(request.jobId)
         }
 
         val language = if (request.languageCode.isBlank() || request.languageCode.equals("auto", ignoreCase = true)) {
@@ -151,7 +186,8 @@ class AppTranscriptionExecutionGateway(
                 translate = false,
                 initialPrompt = request.initialPrompt,
                 onProgress = { _ -> },
-                onNewSegment = { _ -> }
+                onNewSegment = { _ -> },
+                shouldCancel = isCancelled
             )
 
             if (isCancelled()) {
@@ -240,8 +276,9 @@ class AppTranscriptionExecutionGateway(
             newId
         }
 
-        // 6. Clean up temporary PCM file
+        // 6. Clean up temporary PCM file and its completion marker
         runCatching { pcmFile.delete() }
+        runCatching { pcmReadyMarker.delete() }
 
         Log.i(TAG, "Transcription job ${request.jobId} completed successfully -> transcript ID $savedTranscriptId")
         savedTranscriptId
@@ -255,6 +292,9 @@ class AppTranscriptionExecutionGateway(
         runCatching {
             val pcmFile = File(context.cacheDir, "transcription_pcm/job_$jobId.pcm")
             if (pcmFile.exists()) pcmFile.delete()
+            val marker = File("${pcmFile.absolutePath}.ready")
+            if (marker.exists()) marker.delete()
+            File(pcmFile.parentFile, "${pcmFile.name}.preparing").delete()
             queueRepository.clearCheckpoint(jobId)
         }
     }

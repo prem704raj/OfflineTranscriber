@@ -97,6 +97,10 @@ Java_app_offlinetranscriber_mobile_transcription_WhisperNative_initContext(
     }
 
     const char *model_path = env->GetStringUTFChars(model_path_str, nullptr);
+    if (!model_path) {
+        LOGE("Failed to access model path string");
+        return 0;
+    }
     LOGI("Loading Whisper model from file: %s", model_path);
 
     struct whisper_context_params cparams = whisper_context_default_params();
@@ -123,6 +127,10 @@ Java_app_offlinetranscriber_mobile_transcription_WhisperNative_initContextFromAs
     }
 
     const char *asset_path = env->GetStringUTFChars(asset_path_str, nullptr);
+    if (!asset_path) {
+        LOGE("Failed to access asset path string");
+        return 0;
+    }
     LOGI("Loading Whisper model from asset: %s", asset_path);
 
     AAssetManager *asset_manager = AAssetManager_fromJava(env, asset_manager_obj);
@@ -182,7 +190,16 @@ Java_app_offlinetranscriber_mobile_transcription_WhisperNative_fullTranscribeWit
         return -1;
     }
 
+    if (!audio_data) {
+        LOGE("Audio sample array is null");
+        return -1;
+    }
+
     jfloat *samples = env->GetFloatArrayElements(audio_data, nullptr);
+    if (!samples) {
+        LOGE("Failed to access audio sample array");
+        return -1;
+    }
     jsize n_samples = env->GetArrayLength(audio_data);
 
     struct whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
@@ -212,8 +229,10 @@ Java_app_offlinetranscriber_mobile_transcription_WhisperNative_fullTranscribeWit
     std::string language_str;
     if (lang_str) {
         const char *l = env->GetStringUTFChars(lang_str, nullptr);
-        language_str = l;
-        env->ReleaseStringUTFChars(lang_str, l);
+        if (l) {
+            language_str = l;
+            env->ReleaseStringUTFChars(lang_str, l);
+        }
         if (language_str == "auto" || language_str.empty()) {
             params.language = "auto";
             params.detect_language = true;

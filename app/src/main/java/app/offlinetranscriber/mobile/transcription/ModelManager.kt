@@ -52,6 +52,35 @@ class ModelManager(private val context: Context) {
         private const val TAG = "ModelManager"
         private const val PREF_SELECTED_MODEL_ID = "selected_model_id"
 
+        private data class ModelIntegrity(val sha256: String, val minimumBytes: Long)
+
+        private val LEGACY_MODEL_INTEGRITY = mapOf(
+            "ggml-tiny.en.bin" to ModelIntegrity(
+                "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f",
+                40L * 1024 * 1024
+            ),
+            "ggml-tiny.bin" to ModelIntegrity(
+                "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
+                40L * 1024 * 1024
+            ),
+            "ggml-base.bin" to ModelIntegrity(
+                "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
+                70L * 1024 * 1024
+            ),
+            "ggml-base.en.bin" to ModelIntegrity(
+                "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002",
+                70L * 1024 * 1024
+            ),
+            "ggml-base-q5_1.bin" to ModelIntegrity(
+                "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898",
+                30L * 1024 * 1024
+            ),
+            "ggml-small.bin" to ModelIntegrity(
+                "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
+                250L * 1024 * 1024
+            )
+        )
+
         val AVAILABLE_MODELS = listOf(
             WhisperModelInfo(
                 id = "base-q5_1",
@@ -114,19 +143,38 @@ class ModelManager(private val context: Context) {
     private val _downloadStates = MutableStateFlow<Map<String, DownloadState>>(emptyMap())
     val downloadStates = _downloadStates.asStateFlow()
 
-    fun getModelFile(model: WhisperModelInfo): File {
-        val canonical = File(File(context.filesDir, "whisper_models"), model.fileName)
-        if (canonical.exists() && canonical.length() > 1_000_000L) {
-            return canonical
+    private val verifiedCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
+    private fun modelCandidates(model: WhisperModelInfo): List<File> = listOf(
+        File(File(context.filesDir, "whisper_models"), model.fileName),
+        File(modelsDir, model.fileName)
+    ).distinctBy { it.absolutePath }
+
+    private fun integrityFor(model: WhisperModelInfo): ModelIntegrity? =
+        app.offlinetranscriber.mobile.modelmanager.ModelCatalog.byFileName(model.fileName)
+            ?.let { ModelIntegrity(it.sha256, it.minimumValidBytes) }
+            ?: LEGACY_MODEL_INTEGRITY[model.fileName]
+
+    private fun verifyFile(file: File, model: WhisperModelInfo): Boolean {
+        if (!file.exists() || !file.isFile) return false
+        val integrity = integrityFor(model)
+        if (integrity == null) {
+            return file.length() >= maxOf(10_000_000L, model.sizeBytes / 2)
         }
-        return File(modelsDir, model.fileName)
+        if (file.length() < integrity.minimumBytes) return false
+        val cacheKey = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
+        return verifiedCache.computeIfAbsent(cacheKey) {
+            app.offlinetranscriber.mobile.security.Sha256.matches(file, integrity.sha256)
+        }
     }
 
-    fun isModelDownloaded(model: WhisperModelInfo): Boolean {
-        val file = getModelFile(model)
-        // Basic check: file exists and has size > 1MB
-        return file.exists() && file.length() > 1_000_000L
+    fun getModelFile(model: WhisperModelInfo): File {
+        val candidates = modelCandidates(model)
+        return candidates.firstOrNull { verifyFile(it, model) } ?: candidates.first()
     }
+
+    fun isModelDownloaded(model: WhisperModelInfo): Boolean =
+        modelCandidates(model).any { verifyFile(it, model) }
 
     fun getDownloadedModels(): List<WhisperModelInfo> {
         return AVAILABLE_MODELS.filter { isModelDownloaded(it) }
@@ -147,11 +195,14 @@ class ModelManager(private val context: Context) {
     }
 
     fun deleteModel(model: WhisperModelInfo): Boolean {
-        val file = getModelFile(model)
-        if (file.exists()) {
-            return file.delete()
+        var deleted = false
+        modelCandidates(model).forEach { file ->
+            if (file.exists()) {
+                verifiedCache.keys.removeAll { it.startsWith("${file.absolutePath}:") }
+                deleted = file.delete() || deleted
+            }
         }
-        return false
+        return deleted
     }
 
     suspend fun importModelFromUri(uri: Uri, customName: String): Result<File> = withContext(Dispatchers.IO) {
@@ -218,12 +269,38 @@ class ModelManager(private val context: Context) {
                 }
             }
 
-            if (tempFile.renameTo(targetFile)) {
+            val integrity = integrityFor(model)
+            if (integrity != null) {
+                val valid = tempFile.length() >= integrity.minimumBytes &&
+                    app.offlinetranscriber.mobile.security.Sha256.matches(tempFile, integrity.sha256)
+                if (!valid) {
+                    tempFile.delete()
+                    val err = "Downloaded model failed SHA-256 integrity verification"
+                    Log.e(TAG, err)
+                    emit(DownloadState.Error(err))
+                    updateState(model.id, DownloadState.Error(err))
+                    return@flow
+                }
+            }
+
+            targetFile.parentFile?.mkdirs()
+            if (targetFile.exists() && !verifyFile(targetFile, model)) {
+                targetFile.delete()
+            }
+            if (targetFile.exists() && verifyFile(targetFile, model)) {
+                tempFile.delete()
+                val completed = DownloadState.Completed(targetFile)
+                emit(completed)
+                updateState(model.id, completed)
+                setSelectedModel(model)
+            } else if (tempFile.renameTo(targetFile)) {
+                verifiedCache.keys.removeAll { it.startsWith("${targetFile.absolutePath}:") }
                 val completed = DownloadState.Completed(targetFile)
                 emit(completed)
                 updateState(model.id, completed)
                 setSelectedModel(model)
             } else {
+                tempFile.delete()
                 val err = "Failed to finalize downloaded file"
                 emit(DownloadState.Error(err))
                 updateState(model.id, DownloadState.Error(err))

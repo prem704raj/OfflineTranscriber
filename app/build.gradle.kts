@@ -112,7 +112,7 @@ android {
 
     lint {
         abortOnError = true
-        checkReleaseBuilds = false
+        checkReleaseBuilds = true
         disable += listOf(
             "UnsafeOptInUsageError",
             "OldTargetApi",

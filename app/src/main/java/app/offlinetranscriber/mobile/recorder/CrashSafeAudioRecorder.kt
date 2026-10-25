@@ -29,6 +29,7 @@ class CrashSafeAudioRecorder(
 
     private val isRecording = AtomicBoolean(false)
     private val isPaused = AtomicBoolean(false)
+    private val ioLock = Any()
 
     @Volatile
     var hasWriteError: Boolean = false
@@ -100,6 +101,7 @@ class CrashSafeAudioRecorder(
             currentFile = outputFile
             totalBytesWritten = 0L
             latestAmplitude = 0f
+            hasWriteError = false
             isPaused.set(false)
             isRecording.set(true)
 
@@ -136,6 +138,9 @@ class CrashSafeAudioRecorder(
                 }
 
                 val readCount = record.read(shortBuffer, 0, shortBuffer.size)
+                if (!isRecording.get()) {
+                    break
+                }
                 if (readCount > 0) {
                     var peak = 0
                     byteBuffer.clear()
@@ -148,8 +153,20 @@ class CrashSafeAudioRecorder(
 
                     latestAmplitude = peak.toFloat()
                     val bytesToWrite = readCount * 2
-                    stream.write(byteBuffer.array(), 0, bytesToWrite)
-                    totalBytesWritten += bytesToWrite
+                    synchronized(ioLock) {
+                        val currentStream = outputStream ?: return@synchronized
+                        if (totalBytesWritten + bytesToWrite > WavAudioWriter.MAX_WAV_AUDIO_BYTES) {
+                            Log.w(TAG, "Maximum WAV recording size reached; stopping capture safely")
+                            hasWriteError = true
+                            isRecording.set(false)
+                            onErrorListener?.invoke(
+                                java.io.IOException("Maximum WAV recording size reached. Recording saved up to the RIFF limit.")
+                            )
+                            return@synchronized
+                        }
+                        currentStream.write(byteBuffer.array(), 0, bytesToWrite)
+                        totalBytesWritten += bytesToWrite
+                    }
                 } else if (readCount < 0) {
                     Log.w(TAG, "AudioRecord.read returned error code: $readCount")
                 }
@@ -160,9 +177,11 @@ class CrashSafeAudioRecorder(
             isRecording.set(false)
             onErrorListener?.invoke(e)
         } finally {
-            try {
-                stream.flush()
-            } catch (_: Exception) {}
+            synchronized(ioLock) {
+                try {
+                    outputStream?.flush()
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -184,46 +203,51 @@ class CrashSafeAudioRecorder(
 
     fun flushAndSyncHeader() {
         val file = currentFile ?: return
-        try {
-            outputStream?.flush()
-            WavAudioWriter.repairWavHeader(file, sampleRate)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to sync WAV header: ${e.message}")
+        synchronized(ioLock) {
+            try {
+                outputStream?.flush()
+                WavAudioWriter.repairWavHeader(file, sampleRate)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to sync WAV header: ${e.message}")
+            }
         }
     }
 
     fun stop(): Result<Long> {
-        if (!isRecording.get()) {
+        if (!isRecording.compareAndSet(true, false)) {
             return Result.failure(IllegalStateException("Not recording"))
         }
 
-        isRecording.set(false)
         isPaused.set(false)
-
-        try {
-            recordingThread?.join(1500)
-        } catch (_: Exception) {}
-        recordingThread = null
 
         val record = audioRecord
         audioRecord = null
 
+        // Stop AudioRecord first to unblock any pending record.read() in recordLoop
         runCatching {
             record?.stop()
         }
+
+        try {
+            recordingThread?.join(2000)
+        } catch (_: Exception) {}
+        recordingThread = null
+
         runCatching {
             record?.release()
         }
 
-        try {
-            outputStream?.flush()
-            outputStream?.close()
-        } catch (_: Exception) {}
-        outputStream = null
+        synchronized(ioLock) {
+            try {
+                outputStream?.flush()
+                outputStream?.close()
+            } catch (_: Exception) {}
+            outputStream = null
 
-        val file = currentFile
-        if (file != null && file.exists()) {
-            WavAudioWriter.repairWavHeader(file, sampleRate)
+            val file = currentFile
+            if (file != null && file.exists()) {
+                WavAudioWriter.repairWavHeader(file, sampleRate)
+            }
         }
 
         if (hasWriteError) {
@@ -231,7 +255,7 @@ class CrashSafeAudioRecorder(
         }
 
         val finalDuration = durationMs
-        Log.i(TAG, "Stopped recording. Total duration: ${finalDuration}ms, file: ${file?.absolutePath}")
+        Log.i(TAG, "Stopped recording. Total duration: ${finalDuration}ms, file: ${currentFile?.absolutePath}")
         return Result.success(finalDuration)
     }
 
@@ -239,26 +263,29 @@ class CrashSafeAudioRecorder(
         isRecording.set(false)
         isPaused.set(false)
 
+        val record = audioRecord
+        audioRecord = null
+        runCatching { record?.stop() }
+
         try {
             recordingThread?.interrupt()
             recordingThread?.join(500)
         } catch (_: Exception) {}
         recordingThread = null
 
-        val record = audioRecord
-        audioRecord = null
-        runCatching { record?.stop() }
         runCatching { record?.release() }
 
-        try {
-            outputStream?.flush()
-            outputStream?.close()
-        } catch (_: Exception) {}
-        outputStream = null
+        synchronized(ioLock) {
+            try {
+                outputStream?.flush()
+                outputStream?.close()
+            } catch (_: Exception) {}
+            outputStream = null
 
-        val file = currentFile
-        if (file != null && file.exists()) {
-            WavAudioWriter.repairWavHeader(file, sampleRate)
+            val file = currentFile
+            if (file != null && file.exists()) {
+                WavAudioWriter.repairWavHeader(file, sampleRate)
+            }
         }
     }
 }

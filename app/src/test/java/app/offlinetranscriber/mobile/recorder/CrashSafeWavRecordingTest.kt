@@ -1,5 +1,6 @@
 package app.offlinetranscriber.mobile.recorder
 
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -96,6 +97,50 @@ class CrashSafeWavRecordingTest {
             val riffChunkSize = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN).int
             assertEquals(160_044 - 8, riffChunkSize)
         }
+    }
+
+    @Test
+    fun nonRiffWavIsNeverRewrittenWithSyntheticHeader() {
+        val file = File(testDir, "not_really_wav.wav")
+        val original = ByteArray(256) { (it % 251).toByte() }
+        file.writeBytes(original)
+
+        assertFalse("Repair must reject files without a canonical RIFF PCM header", WavAudioWriter.repairWavHeader(file))
+        assertFalse("Non-RIFF content is not a valid WAV", WavAudioWriter.isValidWav(file))
+        assertArrayEquals("Rejected file must remain byte-for-byte unchanged", original, file.readBytes())
+    }
+
+    @Test
+    fun repairRejectsHeaderWithUnexpectedFormatFields() {
+        val file = File(testDir, "wrong_format.wav")
+        val header = WavAudioWriter.createWavHeader(100L, sampleRate = 8_000)
+        file.writeBytes(header + ByteArray(100))
+        val original = file.readBytes()
+
+        assertFalse(
+            "Repair must not reinterpret a WAV recorded with non-canonical format fields",
+            WavAudioWriter.repairWavHeader(file)
+        )
+        assertArrayEquals(original, file.readBytes())
+    }
+
+    @Test
+    fun overclaimedDataChunkSizeIsRejected() {
+        val file = File(testDir, "overclaimed.wav")
+        WavAudioWriter.writeInitialHeader(file)
+        FileOutputStream(file, true).use { it.write(ByteArray(1_000)) }
+
+        RandomAccessFile(file, "rw").use { raf ->
+            val buf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+            raf.seek(40)
+            buf.clear()
+            raf.write(buf.putInt(2_000).array())
+            raf.seek(4)
+            buf.clear()
+            raf.write(buf.putInt(2_036).array())
+        }
+
+        assertFalse("Data chunk larger than the physical payload must be rejected", WavAudioWriter.isValidWav(file))
     }
 
     @Test

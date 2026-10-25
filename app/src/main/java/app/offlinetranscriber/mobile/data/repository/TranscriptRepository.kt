@@ -14,6 +14,7 @@ import app.offlinetranscriber.mobile.domain.model.TranscriptionState
 import app.offlinetranscriber.mobile.transcription.AudioProcessor
 import app.offlinetranscriber.mobile.transcription.ModelManager
 import app.offlinetranscriber.mobile.transcription.WhisperEngine
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -36,7 +37,8 @@ class TranscriptRepository(
     val modelManager: ModelManager,
     val whisperEngine: WhisperEngine,
     val audioProcessor: AudioProcessor,
-    private val transcriptDao: TranscriptDao = AppDatabase.getInstance(context).transcriptDao()
+    private val database: AppDatabase = AppDatabase.getInstance(context),
+    private val transcriptDao: TranscriptDao = database.transcriptDao()
 ) {
     companion object {
         private const val TAG = "TranscriptRepository"
@@ -281,40 +283,43 @@ class TranscriptRepository(
             val title = request.suggestedTitle?.ifBlank { fileName.substringBeforeLast('.') }
                 ?: fileName.substringBeforeLast('.')
 
-            // 4. Save to Database
-            val entity = TranscriptEntity.fromSegments(
-                title = title,
-                audioFileName = fileName,
-                audioDurationMs = durationMs.takeIf { it > 0 } ?: (audioSamples.size / 16L),
-                segments = segments,
-                modelUsed = selectedModel.name,
-                audioUriString = request.audioUri.toString(),
-                sourceUri = request.sourceUri.toString(),
-                mediaType = request.mediaType
-            )
-
-            val savedId = transcriptDao.insertTranscript(entity)
-            val segmentEntities = segments.map { seg ->
-                app.offlinetranscriber.mobile.data.model.TranscriptSegmentEntity(
-                    transcriptId = savedId,
-                    startMs = seg.startMs,
-                    endMs = seg.endMs,
-                    text = seg.text.trim()
+            // 4. Save to Database within atomic Room transaction
+            val (savedEntity, numberedSegments) = database.withTransaction {
+                val entity = TranscriptEntity.fromSegments(
+                    title = title,
+                    audioFileName = fileName,
+                    audioDurationMs = durationMs.takeIf { it > 0 } ?: (audioSamples.size / 16L),
+                    segments = segments,
+                    modelUsed = selectedModel.name,
+                    audioUriString = request.audioUri.toString(),
+                    sourceUri = request.sourceUri.toString(),
+                    mediaType = request.mediaType
                 )
-            }
-            val insertedIds = transcriptDao.insertSegments(segmentEntities)
-            val numberedSegments = segments.mapIndexed { index, seg ->
-                val dbId = insertedIds.getOrNull(index) ?: (index + 1).toLong()
-                seg.copy(id = dbId)
-            }
-            val updatedJson = Json.encodeToString(numberedSegments)
-            transcriptDao.updateSegments(savedId, updatedJson, fullText)
 
-            val savedEntity = entity.copy(id = savedId, segmentsJson = updatedJson)
+                val savedId = transcriptDao.insertTranscript(entity)
+                val segmentEntities = segments.map { seg ->
+                    app.offlinetranscriber.mobile.data.model.TranscriptSegmentEntity(
+                        transcriptId = savedId,
+                        startMs = seg.startMs,
+                        endMs = seg.endMs,
+                        text = seg.text.trim()
+                    )
+                }
+                val insertedIds = transcriptDao.insertSegments(segmentEntities)
+                val numbered = segments.mapIndexed { index, seg ->
+                    val dbId = insertedIds.getOrNull(index) ?: (index + 1).toLong()
+                    seg.copy(id = dbId)
+                }
+                val updatedJson = Json.encodeToString(numbered)
+                transcriptDao.updateSegments(savedId, updatedJson, fullText)
+                Pair(entity.copy(id = savedId, segmentsJson = updatedJson), numbered)
+            }
 
             onStateChange(TranscriptionState.Success(fullText, numberedSegments))
             Result.success(savedEntity)
 
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Transcription failed", e)
             onStateChange(TranscriptionState.Error(e.localizedMessage ?: "Unknown error", e))
@@ -354,7 +359,12 @@ class TranscriptRepository(
             }
 
             val modelFile = modelManager.getModelFile(selectedModel)
-            whisperEngine.loadModel(modelFile)
+            val loadResult = whisperEngine.loadModel(modelFile)
+            if (loadResult.isFailure) {
+                val error = "Failed to load model: ${loadResult.exceptionOrNull()?.message}"
+                onStateChange(TranscriptionState.Error(error))
+                return@withContext Result.failure(loadResult.exceptionOrNull()!!)
+            }
 
             onStateChange(TranscriptionState.DecodingAudio(0.5f))
             val inputStream = context.assets.open("jfk.wav")
@@ -403,27 +413,30 @@ class TranscriptRepository(
                 audioUriString = "asset://jfk.wav"
             )
 
-            val savedId = transcriptDao.insertTranscript(entity)
-            val segmentEntities = segments.map { seg ->
-                app.offlinetranscriber.mobile.data.model.TranscriptSegmentEntity(
-                    transcriptId = savedId,
-                    startMs = seg.startMs,
-                    endMs = seg.endMs,
-                    text = seg.text.trim()
-                )
+            val (savedEntity, numberedSegments) = database.withTransaction {
+                val savedId = transcriptDao.insertTranscript(entity)
+                val segmentEntities = segments.map { seg ->
+                    app.offlinetranscriber.mobile.data.model.TranscriptSegmentEntity(
+                        transcriptId = savedId,
+                        startMs = seg.startMs,
+                        endMs = seg.endMs,
+                        text = seg.text.trim()
+                    )
+                }
+                val insertedIds = transcriptDao.insertSegments(segmentEntities)
+                val numbered = segments.mapIndexed { index, seg ->
+                    val dbId = insertedIds.getOrNull(index) ?: (index + 1).toLong()
+                    seg.copy(id = dbId)
+                }
+                val updatedJson = Json.encodeToString(numbered)
+                transcriptDao.updateSegments(savedId, updatedJson, fullText)
+                entity.copy(id = savedId, segmentsJson = updatedJson) to numbered
             }
-            val insertedIds = transcriptDao.insertSegments(segmentEntities)
-            val numberedSegments = segments.mapIndexed { index, seg ->
-                val dbId = insertedIds.getOrNull(index) ?: (index + 1).toLong()
-                seg.copy(id = dbId)
-            }
-            val updatedJson = Json.encodeToString(numberedSegments)
-            transcriptDao.updateSegments(savedId, updatedJson, fullText)
-
-            val savedEntity = entity.copy(id = savedId, segmentsJson = updatedJson)
 
             onStateChange(TranscriptionState.Success(fullText, numberedSegments))
             Result.success(savedEntity)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Bundled sample transcription error", e)
             onStateChange(TranscriptionState.Error(e.localizedMessage ?: "Unknown error", e))

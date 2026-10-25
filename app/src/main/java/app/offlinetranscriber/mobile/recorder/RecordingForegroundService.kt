@@ -26,6 +26,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
 
@@ -135,6 +136,12 @@ class RecordingForegroundService : Service() {
             val file = File(dir, "recording_${System.currentTimeMillis()}.wav")
             outputFile = file
 
+            // Journal the destination before capturing starts so a process death
+            // at any point after the first audio byte leaves a recoverable draft.
+            startTimeMs = System.currentTimeMillis()
+            accumulatedMs = 0L
+            RecordingDraftJournal.start(this, file.absolutePath, startTimeMs)
+
             val recorder = CrashSafeAudioRecorder().apply {
                 onErrorListener = { error ->
                     serviceScope.launch(Dispatchers.Main) {
@@ -151,10 +158,6 @@ class RecordingForegroundService : Service() {
             crashSafeRecorder = recorder
             isRecording = true
             isPaused = false
-            startTimeMs = System.currentTimeMillis()
-            accumulatedMs = 0L
-
-            RecordingDraftJournal.start(this, file.absolutePath, startTimeMs)
 
             RecordingSessionStore.set(
                 RecordingState(
